@@ -127,3 +127,9 @@ node_modules/
 # Cache / misc
 .cache
 *.stackdump
+
+# Rider caches
+.idea_modules/
+
+# JetBrains cache
+.jetbrains/
