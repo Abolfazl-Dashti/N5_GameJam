@@ -9,6 +9,9 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private LayerMask groundLayer;
     [SerializeField] private float groundCheckDistance;
     
+    // Look Settings
+    [SerializeField] private Transform cameraTransform;
+    
     // Component References
     [SerializeField] private Rigidbody rb;
     
@@ -30,11 +33,18 @@ public class PlayerController : MonoBehaviour
     private void OnEnable()
     {
         _inputAction.Enable();
+
+        // Lock & hide mouse cursor
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
     }
 
     private void OnDisable()
     {
         _inputAction.Disable();
+        
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
     }
 
     private void Jump(InputAction.CallbackContext context)
@@ -55,6 +65,7 @@ public class PlayerController : MonoBehaviour
         _isGrounded = Physics.Raycast(transform.position, Vector3.down, groundCheckDistance, groundLayer);
         Debug.DrawRay(transform.position, Vector3.down * groundCheckDistance, Color.blue);
         
+        RotatePlayerToCameraDirection();
         MovePlayer();
     }
 
@@ -71,5 +82,20 @@ public class PlayerController : MonoBehaviour
 
         // We keep the current Y velocity so gravity and jumping aren't interrupted
         rb.linearVelocity = new Vector3(targetVelocity.x, rb.linearVelocity.y, targetVelocity.z);
+    }
+    
+    private void RotatePlayerToCameraDirection()
+    {
+        if (!cameraTransform) return;
+
+        // بدنه پلیر هم‌جهت با زاویه افقی (Y) دوربین می‌چرخد
+        Vector3 targetForward = cameraTransform.forward;
+        targetForward.y = 0;
+
+        if (targetForward.sqrMagnitude > 0.001f)
+        {
+            Quaternion targetRotation = Quaternion.LookRotation(targetForward);
+            rb.MoveRotation(targetRotation);
+        }
     }
 }

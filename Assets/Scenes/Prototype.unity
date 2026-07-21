@@ -620,6 +620,7 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 8
   groundCheckDistance: 1.12
+  cameraTransform: {fileID: 927034437}
   rb: {fileID: 659413536}
   moveInput: {x: 0, y: 0}
 --- !u!1 &925283688
@@ -837,7 +838,7 @@ Transform:
   m_GameObject: {fileID: 927034434}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -1.64, y: 3.21, z: -25.14}
+  m_LocalPosition: {x: -1.64, y: 3.21, z: -24.859999}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1101,6 +1102,8 @@ GameObject:
   - component: {fileID: 1491604458}
   - component: {fileID: 1491604461}
   - component: {fileID: 1491604460}
+  - component: {fileID: 1491604463}
+  - component: {fileID: 1491604462}
   m_Layer: 0
   m_Name: FirstPersonCamera
   m_TagString: Untagged
@@ -1160,7 +1163,7 @@ Transform:
   m_GameObject: {fileID: 1491604457}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -1.64, y: 3.21, z: -25.14}
+  m_LocalPosition: {x: -1.64, y: 3.21, z: -24.859999}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1193,7 +1196,7 @@ MonoBehaviour:
   TiltAxis:
     Value: 0
     Center: 0
-    Range: {x: -70, y: 70}
+    Range: {x: -80, y: 80}
     Wrap: 0
     Recentering:
       Enabled: 0
@@ -1213,6 +1216,64 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Unity.Cinemachine::Unity.Cinemachine.CinemachineHardLockToTarget
   Damping: 0
+--- !u!114 &1491604462
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1491604457}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 89875cdc57c54474a8a74efd9b2a3b5d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.Cinemachine::Unity.Cinemachine.CinemachineInputAxisController
+  ScanRecursively: 1
+  SuppressInputWhileBlending: 1
+  IgnoreTimeScale: 1
+  m_ControllerManager:
+    Controllers:
+    - Name: Look X (Pan)
+      Owner: {fileID: 1491604460}
+      Enabled: 1
+      Input:
+        InputAction: {fileID: -8325736542091030898, guid: aecd9ec25f0f6d34887e55d2f8b02ad8, type: 3}
+        Gain: 0.1
+        CancelDeltaTime: 1
+      InputValue: 0
+      Driver:
+        AccelTime: 0
+        DecelTime: 0
+    - Name: Look Y (Tilt)
+      Owner: {fileID: 1491604460}
+      Enabled: 1
+      Input:
+        InputAction: {fileID: -8325736542091030898, guid: aecd9ec25f0f6d34887e55d2f8b02ad8, type: 3}
+        Gain: -0.1
+        CancelDeltaTime: 1
+      InputValue: 0
+      Driver:
+        AccelTime: 0
+        DecelTime: 0
+  PlayerIndex: -1
+  AutoEnableInputs: 1
+--- !u!114 &1491604463
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1491604457}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 68bb026fafb42b14791938953eaace77, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.Cinemachine::Unity.Cinemachine.CinemachineBasicMultiChannelPerlin
+  NoiseProfile: {fileID: 11400000, guid: 46965f9cbaf525742a6da4c2172a99cd, type: 2}
+  PivotOffset: {x: 0, y: 0, z: 0}
+  AmplitudeGain: 0.5
+  FrequencyGain: 0.3
+  m_NoiseOffsets: {x: -261.23462, y: -158.09521, z: 635.8313}
 --- !u!1 &1605470910
 GameObject:
   m_ObjectHideFlags: 0
@@ -1351,7 +1412,7 @@ Transform:
   m_GameObject: {fileID: 2086766593}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.7, z: 0}
+  m_LocalPosition: {x: 0, y: 0.7, z: 0.28}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
