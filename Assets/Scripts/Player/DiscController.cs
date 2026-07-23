@@ -8,7 +8,7 @@ public class DiscController : MonoBehaviour
     
     // Parameters
     private Rigidbody _rb;
-    private DiscState _currentState = DiscState.Free;
+    public DiscState currentState = DiscState.Free;
     private Transform _currentHolder;
     private Vector3 _velocityBeforeCollision = Vector3.zero;
     private int _wallLayer;
@@ -45,7 +45,7 @@ public class DiscController : MonoBehaviour
     {
         // Track velocity every physics tick so OnCollisionEnter
         // has access to the pre-collision velocity accurately
-        if (_currentState != DiscState.Held)
+        if (currentState != DiscState.Held)
         {
             _velocityBeforeCollision = _rb.linearVelocity;
         }
@@ -57,13 +57,11 @@ public class DiscController : MonoBehaviour
     
     private void ApplyCustomGravity()
     {
-        if (_currentState == DiscState.Held)
+        if (currentState == DiscState.Held)
         {
             return;
         }
-
-        // Physics.gravity is (0, -9.81, 0) by default
-        // Multiplying by gravityScale from the SO gives us a weaker pull
+        
         Vector3 customGravity = Physics.gravity * discData.gravityScale;
         _rb.AddForce(customGravity, ForceMode.Acceleration);
     }
@@ -72,7 +70,7 @@ public class DiscController : MonoBehaviour
     private void OnCollisionEnter(Collision collision)
     {
         // Only process rebounds when disc is Free or Passed
-        if (_currentState == DiscState.Held) return;
+        if (currentState == DiscState.Held) return;
 
         int hitLayer = collision.gameObject.layer;
         bool hitWall = hitLayer == _wallLayer;
@@ -126,7 +124,7 @@ public class DiscController : MonoBehaviour
             return;
         }
 
-        _currentState  = DiscState.Held;
+        currentState  = DiscState.Held;
         _currentHolder = holder;
 
         // Make kinematic so physics doesn't fight the hand position
@@ -144,7 +142,7 @@ public class DiscController : MonoBehaviour
     
     public void SetPassed(Vector3 direction, float speedOverride = -1f)
     {
-        if (_currentState != DiscState.Held)
+        if (currentState != DiscState.Held)
         {
             Debug.LogWarning("[DiscController] SetPassed called but disc is not currently Held.");
             return;
@@ -155,7 +153,7 @@ public class DiscController : MonoBehaviour
         // Detach from holder before re-enabling physics
         transform.SetParent(null);
 
-        _currentState  = DiscState.Passed;
+        currentState  = DiscState.Passed;
         _currentHolder = null;
 
         // Re-enable full physics
@@ -182,7 +180,7 @@ public class DiscController : MonoBehaviour
 
         transform.SetParent(null);
 
-        _currentState  = DiscState.Free;
+        currentState  = DiscState.Free;
         _currentHolder = null;
 
         _rb.isKinematic    = false;
@@ -196,7 +194,7 @@ public class DiscController : MonoBehaviour
     
     public void Redirect(Vector3 redirectDirection, float speedRetention = 0.9f)
     {
-        if (_currentState == DiscState.Held)
+        if (currentState == DiscState.Held)
         {
             Debug.LogWarning("[DiscController] Cannot Redirect a held disc — use SetPassed instead.");
             return;
@@ -210,7 +208,7 @@ public class DiscController : MonoBehaviour
         _velocityBeforeCollision = newVelocity;
 
         // State becomes Free momentarily — possession system decides ownership next
-        _currentState  = DiscState.Free;
+        currentState  = DiscState.Free;
         _currentHolder = null;
 
         onDiscReleased.Invoke(null);
@@ -218,7 +216,7 @@ public class DiscController : MonoBehaviour
     
     private void EnforceSpeedLimits()
     {
-        if (_currentState == DiscState.Held)
+        if (currentState == DiscState.Held)
         {
             return;
         }
@@ -229,7 +227,7 @@ public class DiscController : MonoBehaviour
         {
             _rb.linearVelocity = _rb.linearVelocity.normalized * discData.maxSpeed;
         }
-        else if (_currentState == DiscState.Free && speed < discData.minFreeSpeed && speed > 0.01f)
+        else if (currentState == DiscState.Free && speed < discData.minFreeSpeed && speed > 0.01f)
         {
             // Nudge back up to minimum so disc never awkwardly crawls to a stop
             _rb.linearVelocity = _rb.linearVelocity.normalized * discData.minFreeSpeed;
@@ -238,7 +236,7 @@ public class DiscController : MonoBehaviour
     
     private void FollowHolderIfHeld()
     {
-        if (_currentState != DiscState.Held || !_currentHolder)
+        if (currentState != DiscState.Held || !_currentHolder)
         {
             return;
         }

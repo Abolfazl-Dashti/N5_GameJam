@@ -19,6 +19,9 @@ public class PlayerController : MonoBehaviour
     private Main_InputSystem _inputAction;
     [SerializeField] private Vector2 moveInput;
     private bool _isGrounded;
+    
+    // Property
+    public Main_InputSystem MainInputSystem => _inputAction;
 
     private void Awake()
     {

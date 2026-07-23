@@ -12,12 +12,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 29db9dee0c045ec49a06597059c8e2da, type: 3}
   m_Name: DiscData
   m_EditorClassIdentifier: Assembly-CSharp::DiscData
-  throwSpeed: 20
-  maxSpeed: 40
+  throwSpeed: 40
+  maxSpeed: 60
   minFreeSpeed: 5
-  wallReboundBoostMultiplier: 1.12
-  floorReboundBoostMultiplier: 1.06
-  ceilingReboundBoostMultiplier: 1.1
+  wallReboundBoostMultiplier: 1.5
+  floorReboundBoostMultiplier: 1.248
+  ceilingReboundBoostMultiplier: 1.426
   spinTorque: 15
   freeDrag: 0.05
   gravityScale: 0.4
