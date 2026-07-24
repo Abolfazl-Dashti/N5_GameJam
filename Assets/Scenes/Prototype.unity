@@ -517,6 +517,7 @@ GameObject:
   - component: {fileID: 659413536}
   - component: {fileID: 659413542}
   - component: {fileID: 659413544}
+  - component: {fileID: 659413545}
   m_Layer: 6
   m_Name: Player
   m_TagString: Untagged
@@ -665,6 +666,7 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 256
   groundCheckDistance: 1.12
+  groundCheckOriginOffset: 0.9
   cameraTransform: {fileID: 927034437}
   rb: {fileID: 659413536}
   moveInput: {x: 0, y: 0}
@@ -697,6 +699,37 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls: []
   minRedirectDiscSpeed: 2
+--- !u!114 &659413545
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 659413535}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c7ae358e68400eb4c8d9e84f56c6a999, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerCombat
+  staggerData: {fileID: 11400000, guid: dea08e91410466d459da8e5f6a9dc954, type: 2}
+  playerController: {fileID: 659413542}
+  playerDiscHandler: {fileID: 659413544}
+  rb: {fileID: 659413536}
+  cameraTransform: {fileID: 927034437}
+  discController: {fileID: 1877033726}
+  dashOrigin: {fileID: 659413540}
+  onDashStarted:
+    m_PersistentCalls:
+      m_Calls: []
+  onDashEnded:
+    m_PersistentCalls:
+      m_Calls: []
+  onOpponentStaggered:
+    m_PersistentCalls:
+      m_Calls: []
+  onSelfStaggered:
+    m_PersistentCalls:
+      m_Calls: []
 --- !u!1 &681926994
 GameObject:
   m_ObjectHideFlags: 0
