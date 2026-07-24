@@ -1,13 +1,14 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-public class PlayerController : MonoBehaviour
+public class PlayerController : MonoBehaviour, IStaggerable
 {
     // Parameters
     [SerializeField] private float moveSpeed;
     [SerializeField] private float jumpForce;
     [SerializeField] private LayerMask groundLayer;
     [SerializeField] private float groundCheckDistance;
+    [SerializeField] private float groundCheckOriginOffset = 0.9f;
     
     // Look Settings
     [SerializeField] private Transform cameraTransform;
@@ -19,6 +20,14 @@ public class PlayerController : MonoBehaviour
     private Main_InputSystem _inputAction;
     [SerializeField] private Vector2 moveInput;
     private bool _isGrounded;
+    
+    // Property
+    public Main_InputSystem MainInputSystem => _inputAction;
+    
+    // Stagger Settings
+    private bool _isStaggered;
+    private float _staggerTimer;
+    private PlayerCombat _playerCombat;
 
     private void Awake()
     {
@@ -28,6 +37,8 @@ public class PlayerController : MonoBehaviour
         
         _inputAction.Player.Movement.performed += Movement;
         _inputAction.Player.Movement.canceled += Movement;
+
+        _playerCombat = GetComponent<PlayerCombat>();
     }
 
     private void OnEnable()
@@ -49,7 +60,9 @@ public class PlayerController : MonoBehaviour
 
     private void Jump(InputAction.CallbackContext context)
     {
+        if (_isStaggered) return;
         if (!_isGrounded) return;
+        
         rb.AddForce(Vector3.up * jumpForce * Time.deltaTime, ForceMode.Impulse);
         _isGrounded = false;
     }
@@ -59,11 +72,18 @@ public class PlayerController : MonoBehaviour
         moveInput = context.ReadValue<Vector2>();
     }
 
+    private void Update()
+    {
+        TickStagger();
+    }
+
     private void FixedUpdate()
     {
         // check if player can jump(Handled in 'Jump' Method)
         _isGrounded = Physics.Raycast(transform.position, Vector3.down, groundCheckDistance, groundLayer);
         Debug.DrawRay(transform.position, Vector3.down * groundCheckDistance, Color.blue);
+        
+        if (_isStaggered) return;  // Don't move while stagger
         
         RotatePlayerToCameraDirection();
         MovePlayer();
@@ -97,5 +117,51 @@ public class PlayerController : MonoBehaviour
             Quaternion targetRotation = Quaternion.LookRotation(targetForward);
             rb.MoveRotation(targetRotation);
         }
+    }
+
+    private void TickStagger()
+    {
+        if (!_isStaggered) return;
+
+        _staggerTimer += Time.deltaTime;
+        
+        float staggerDuration = 1.5f;
+        if (_playerCombat) staggerDuration = _playerCombat.GetStaggerDuration();
+
+        if (_staggerTimer >= staggerDuration)
+        {
+            _isStaggered = false;
+            _staggerTimer = 0f;
+            Debug.Log($"PlayerController: {gameObject.name} recovered from stagger");
+        }
+    }
+    
+    public void ApplyStagger(Vector3 knockBackDirection, float knockBackForce)
+    {
+        _isStaggered = true;
+        _staggerTimer = 0f;
+
+        // Kill current velocity so the stagger feels impactful
+        rb.linearVelocity = Vector3.zero;
+
+        // Small physical knockback on the staggered player
+        rb.AddForce(knockBackDirection * (knockBackForce * 0.5f), ForceMode.Impulse);
+
+        // Force disc drop — get PlayerDiscHandler on this object
+        PlayerDiscHandler discHandler = GetComponent<PlayerDiscHandler>();
+        if (discHandler && discHandler.IsHoldingDisc())
+        {
+            discHandler.OnDiscLost();
+        }
+        
+        PlayerCombat combat = GetComponent<PlayerCombat>();
+        if (combat) combat.TriggerSelfStaggeredEvent();
+
+        Debug.Log($"PlayerController: {gameObject.name} is staggered");
+    }
+
+    public bool IsStaggered()
+    {
+        return _isStaggered;
     }
 }
