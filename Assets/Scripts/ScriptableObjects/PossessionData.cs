@@ -1,15 +1,15 @@
 using UnityEngine;
 
-[CreateAssetMenu(fileName = "PossessionData", menuName = "Team/Possession System", order = 0)]
+[CreateAssetMenu(fileName = "PossessionData", menuName = "Match/Possession System", order = 0)]
 public class PossessionData : ScriptableObject
 {
-    [Tooltip("Seconds a team has to score after gaining possession before chain resets.")]
+    [Tooltip("Seconds a team has to score after gaining possession before chain resets")]
     public float attackTimerDuration = 30f;
     
-    [Tooltip("Maximum pass multiplier achievable.")]
+    [Tooltip("Maximum pass multiplier achievable")]
     public int maxPassMultiplier = 5;
 
-    [Tooltip("Multiplier value set after the FIRST successful pass (always 1).")]
+    [Tooltip("Multiplier value set after the FIRST successful pass (always 1)")]
     public int firstPassMultiplier = 1;
 
     [Header("Teams")]

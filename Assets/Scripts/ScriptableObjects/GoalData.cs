@@ -1,6 +1,6 @@
 using UnityEngine;
 
-[CreateAssetMenu(fileName = "GoalData", menuName = "Team/Goal Data", order = 1)]
+[CreateAssetMenu(fileName = "GoalData", menuName = "Match/Goal Data", order = 1)]
 public class GoalData : ScriptableObject
 {
     [Header("Scoring")]

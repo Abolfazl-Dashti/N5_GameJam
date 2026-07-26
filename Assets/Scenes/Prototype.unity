@@ -213,6 +213,74 @@ MonoBehaviour:
   onGoalScored:
     m_PersistentCalls:
       m_Calls: []
+--- !u!1 &278278142
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 278278144}
+  - component: {fileID: 278278143}
+  m_Layer: 0
+  m_Name: MatchManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &278278143
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 278278142}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f73f5f329c1863e4187e46125c7d70ec, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MatchManager
+  matchData: {fileID: 0}
+  playerObject: {fileID: 0}
+  teamABotObject: {fileID: 0}
+  teamBBot1Object: {fileID: 0}
+  teamBBot2Object: {fileID: 0}
+  disc: {fileID: 0}
+  possessionManager: {fileID: 0}
+  scoreManager: {fileID: 0}
+  goalControllers: []
+  onMatchStarted:
+    m_PersistentCalls:
+      m_Calls: []
+  onMatchTimerTick:
+    m_PersistentCalls:
+      m_Calls: []
+  onPostGoalPauseStarted:
+    m_PersistentCalls:
+      m_Calls: []
+  onMatchResumed:
+    m_PersistentCalls:
+      m_Calls: []
+  onMatchOver:
+    m_PersistentCalls:
+      m_Calls: []
+--- !u!4 &278278144
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 278278142}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &348283295
 GameObject:
   m_ObjectHideFlags: 0
@@ -2158,6 +2226,7 @@ SceneRoots:
   - {fileID: 681926996}
   - {fileID: 348283297}
   - {fileID: 182885234}
+  - {fileID: 278278144}
   - {fileID: 927034437}
   - {fileID: 925283690}
   - {fileID: 659413540}
