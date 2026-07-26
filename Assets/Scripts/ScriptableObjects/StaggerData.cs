@@ -1,6 +1,6 @@
 using UnityEngine;
 
-[CreateAssetMenu(fileName = "StaggerData", menuName = "Characters/Stagger Data", order = 0)]
+[CreateAssetMenu(fileName = "StaggerData", menuName = "Team/Stagger Data", order = 0)]
 public class StaggerData : ScriptableObject
 {
     [Header("Dash Settings")]

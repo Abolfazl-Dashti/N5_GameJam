@@ -1,6 +1,6 @@
 using UnityEngine;
 
-[CreateAssetMenu(fileName = "MatchData", menuName = "Team/Match Data", order = 2)]
+[CreateAssetMenu(fileName = "MatchData", menuName = "Match/Match Data", order = 2)]
 public class MatchData : ScriptableObject
 {
     [Header("Match Timer")]
