@@ -17,7 +17,7 @@ MonoBehaviour:
   dashCooldown: 1.2
   opponentLayerMask:
     serializedVersion: 2
-    m_Bits: 1088
+    m_Bits: 64
   dashHitRadius: 0.8
   staggerDuration: 1.5
   discKnockBackForce: 8

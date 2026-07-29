@@ -1,8 +1,7 @@
-// Attach to: Each goal GameObject (one for TeamA's goal, one for TeamB's goal).
-// Requires: A child GameObject with a Trigger Collider (the goal mouth opening).
 using UnityEngine;
 using UnityEngine.Events;
 
+// Must be attached to Each goal GameObjects of TeamA & TeamB
 public class GoalController : MonoBehaviour, IGoalActivating
 {
     [Header("Data")]
@@ -28,16 +27,16 @@ public class GoalController : MonoBehaviour, IGoalActivating
     [SerializeField] private Collider goalTriggerCollider;
 
     [Header("Events")]
-    [Tooltip("Fires when this goal becomes active (ready to receive shots).")]
+    [Tooltip("what happen when this goal becomes active & ready to receive the disc")]
     public UnityEvent onGoalActivated;
 
-    [Tooltip("Fires when this goal becomes inactive.")]
+    [Tooltip("what happen when this goal becomes inactive")]
     public UnityEvent onGoalDeactivated;
 
-    [Tooltip("Fires when a valid goal is scored. Passes the scoring team and points.")]
+    [Tooltip("Run when a valid goal is scored")]
     public UnityEvent<TeamType, int> onGoalScored;
 
-    [Tooltip("Fires when the post-goal pause ends and the match resets.")]
+    // don't need any attachment in Inspector(handle with MatchManager.cs)
     public UnityEvent onPostGoalReset;
     
     private bool _isActive;

@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4ac2bd9c5d84c5543b8a0fcaedf3f9c8, type: 3}
+  m_Name: Bot 1
+  m_EditorClassIdentifier: Assembly-CSharp::BotData
+  team: 1
+  moveSpeed: 25
+  angularSpeed: 300
+  acceleration: 12
+  catchRadius: 1.8
+  redirectRadius: 2.5
+  shootRange: 10
+  aimInaccuracy: 0.2
+  passSearchRadius: 18
+  holdDecisionTime: 1.5
+  defendRadius: 8
+  interceptTriggerRange: 5
+  dashTriggerRange: 3
+  dashCooldown: 2
+  stateEvaluationInterval: 0.4

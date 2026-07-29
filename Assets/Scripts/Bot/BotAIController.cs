@@ -1,14 +1,11 @@
-// Attach to: Each Bot GameObject.
-// Requires: NavMeshAgent component on the same GameObject.
 using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.Events;
 
+// Must be attached to each Bot
 public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IResettable
 {
-    // -------------------------------------------------------------------------
-    // FSM STATES
-    // -------------------------------------------------------------------------
+    // FSM States
     public enum BotState
     {
         Idle,           // Doing nothing — match not started or post-goal freeze
@@ -18,10 +15,7 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
         Defend,         // Moving to defensive position near own goal
         Intercept       // Dashing toward enemy disc carrier
     }
-
-    // -------------------------------------------------------------------------
-    // INSPECTOR REFERENCES
-    // -------------------------------------------------------------------------
+    
     [Header("Data")]
     [SerializeField] private BotData botData;
 
@@ -44,9 +38,7 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
     public UnityEvent onBotStaggered;
     public UnityEvent onBotRecovered;
 
-    // -------------------------------------------------------------------------
-    // PRIVATE STATE
-    // -------------------------------------------------------------------------
+    // States
     private BotState _currentState = BotState.Idle;
     private NavMeshAgent _agent;
 
@@ -71,16 +63,11 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
 
     // Cached disc Rigidbody
     private Rigidbody _discRigidbody;
-
-    // -------------------------------------------------------------------------
-    // PUBLIC READ-ONLY
-    // -------------------------------------------------------------------------
+    
+    // Property
     public BotState CurrentState => _currentState;
-    public TeamType Team { get { return botData ? botData.team : TeamType.None; } }
-
-    // -------------------------------------------------------------------------
-    // UNITY LIFECYCLE
-    // -------------------------------------------------------------------------
+    public TeamType Team => botData ? botData.team : TeamType.None;
+    
     private void Awake()
     {
         _agent = GetComponent<NavMeshAgent>();
@@ -129,10 +116,8 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
             _holdTimer += Time.deltaTime;
         }
     }
-
-    // -------------------------------------------------------------------------
-    // DISC EVENT SUBSCRIPTIONS
-    // -------------------------------------------------------------------------
+    
+    // Disc Events
     private void SubscribeToDiscEvents()
     {
         if (!disc) return;
@@ -165,10 +150,9 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
             // Another character has the disc — do nothing, FSM will react
         }
     }
-
-    // -------------------------------------------------------------------------
-    // FSM — STATE EVALUATION
-    // Re-evaluated every stateEvaluationInterval seconds
+    
+    // FSM — State evaluation
+    // re-evaluated every state evaluation interval seconds
     // -------------------------------------------------------------------------
     private void EvaluateState()
     {
