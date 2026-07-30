@@ -2,20 +2,18 @@ using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.Events;
 
-// Must be attached to each Bot
 public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IResettable
 {
-    // FSM States
     public enum BotState
     {
-        Idle,           // Doing nothing — match not started or post-goal freeze
-        ChaseDisc,      // Moving toward the free disc to pick it up
-        HoldAndPass,    // Has disc — deciding whether to pass or shoot
-        ShootAtGoal,    // Moving into shoot range and firing at active goal
-        Defend,         // Moving to defensive position near own goal
-        Intercept       // Dashing toward enemy disc carrier
+        Idle,
+        ChaseDisc,
+        HoldAndPass,
+        ShootAtGoal,
+        Defend,
+        Intercept
     }
-    
+
     [Header("Data")]
     [SerializeField] private BotData botData;
 
@@ -31,6 +29,11 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
 
     [Tooltip("Teammate bot or player Transform — used for pass targeting.")]
     [SerializeField] private Transform teammate;
+    
+    private Vector3 _debugLastChaseTarget;
+
+    private float _catchBuffer;
+    private const float CatchBufferDuration = 0.5f;
 
     [Header("Events")]
     public UnityEvent onBotCaughtDisc;
@@ -38,36 +41,28 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
     public UnityEvent onBotStaggered;
     public UnityEvent onBotRecovered;
 
-    // States
     private BotState _currentState = BotState.Idle;
     private NavMeshAgent _agent;
 
-    // Disc interaction
     private bool _isHoldingDisc;
     private float _holdTimer;
 
-    // Stagger
     private bool _isStaggered;
     private float _staggerTimer;
     private float _staggerDuration = 1.5f;
 
-    // Freeze (for MatchManager center spawn)
     private bool _isFrozen;
 
-    // Dash cooldown
     private bool _dashOnCooldown;
     private float _dashCooldownTimer;
 
-    // FSM evaluation interval
     private float _stateEvalTimer;
 
-    // Cached disc Rigidbody
     private Rigidbody _discRigidbody;
-    
-    // Property
+
     public BotState CurrentState => _currentState;
     public TeamType Team => botData ? botData.team : TeamType.None;
-    
+
     private void Awake()
     {
         _agent = GetComponent<NavMeshAgent>();
@@ -92,7 +87,7 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
 
     private void Update()
     {
-        if (_isFrozen || _isStaggered)
+        if (_isFrozen)
         {
             _agent.ResetPath();
             return;
@@ -100,8 +95,14 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
 
         TickStagger();
         TickDashCooldown();
+        TickCatchBuffer();
 
-        // Re-evaluate FSM state on interval — not every frame (performance)
+        if (_isStaggered)
+        {
+            _agent.ResetPath();
+            return;
+        }
+
         _stateEvalTimer += Time.deltaTime;
         if (_stateEvalTimer >= botData.stateEvaluationInterval)
         {
@@ -111,13 +112,36 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
 
         ExecuteCurrentState();
 
-        if (_isHoldingDisc)
+        if (!_isHoldingDisc)
         {
             _holdTimer += Time.deltaTime;
+            AttemptProximityCatch();
         }
     }
-    
-    // Disc Events
+
+    private void AttemptProximityCatch()
+    {
+        if (_isHoldingDisc) return;
+        if (_catchBuffer > 0f) return;
+        if (!IsDiscChaseable()) return;
+
+        float horizontalDist = GetHorizontalDistanceToDisc();
+        if (horizontalDist > botData.catchRadius) return;
+
+        float verticalDist = Mathf.Abs(transform.position.y - disc.transform.position.y);
+        if (verticalDist > botData.catchVerticalTolerance) return;
+
+        CatchDisc();
+    }
+
+    private void TickCatchBuffer()
+    {
+        if (_catchBuffer > 0f)
+        {
+            _catchBuffer -= Time.deltaTime;
+        }
+    }
+
     private void SubscribeToDiscEvents()
     {
         if (!disc) return;
@@ -134,7 +158,6 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
 
     private void OnDiscReleased(Transform lastHolder)
     {
-        // If this bot lost the disc externally (stagger), clear holding flag
         if (_isHoldingDisc && (lastHolder == null || lastHolder == transform))
         {
             _isHoldingDisc = false;
@@ -144,15 +167,14 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
 
     private void OnDiscHeld(Transform newHolder)
     {
-        // If someone else caught the disc, make sure this bot knows it's free
         if (newHolder != transform)
         {
-            // Another character has the disc — do nothing, FSM will react
+            // Another character has the disc — FSM will react on next evaluation.
         }
     }
-    
-    // FSM — State evaluation
-    // re-evaluated every state evaluation interval seconds
+
+    // -------------------------------------------------------------------------
+    // FSM — STATE EVALUATION
     // -------------------------------------------------------------------------
     private void EvaluateState()
     {
@@ -162,7 +184,6 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
             return;
         }
 
-        // Priority 1: If holding disc — decide to pass or shoot
         if (_isHoldingDisc)
         {
             if (ShouldShoot())
@@ -176,28 +197,24 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
             return;
         }
 
-        // Priority 2: If enemy has the disc near us — intercept
         if (ShouldIntercept())
         {
             TransitionTo(BotState.Intercept);
             return;
         }
 
-        // Priority 3: If disc is free — chase it
-        if (IsDiscFree())
+        if (IsDiscChaseable())
         {
             TransitionTo(BotState.ChaseDisc);
             return;
         }
 
-        // Priority 4: Enemy team has disc — defend
         if (EnemyTeamHasDisc())
         {
             TransitionTo(BotState.Defend);
             return;
         }
 
-        // Priority 5: Teammate has disc — move to a support position
         if (TeammateHasDisc())
         {
             TransitionTo(BotState.HoldAndPass);
@@ -207,9 +224,6 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
         TransitionTo(BotState.Idle);
     }
 
-    // -------------------------------------------------------------------------
-    // FSM — STATE EXECUTION (runs every Update)
-    // -------------------------------------------------------------------------
     private void ExecuteCurrentState()
     {
         switch (_currentState)
@@ -217,91 +231,114 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
             case BotState.Idle:
                 ExecuteIdle();
                 break;
-
             case BotState.ChaseDisc:
                 ExecuteChaseDisc();
                 break;
-
             case BotState.HoldAndPass:
                 ExecuteHoldAndPass();
                 break;
-
             case BotState.ShootAtGoal:
                 ExecuteShootAtGoal();
                 break;
-
             case BotState.Defend:
                 ExecuteDefend();
                 break;
-
             case BotState.Intercept:
                 ExecuteIntercept();
                 break;
         }
     }
 
-    // -------------------------------------------------------------------------
-    // STATE: IDLE
-    // -------------------------------------------------------------------------
     private void ExecuteIdle()
     {
         _agent.ResetPath();
     }
 
-    // -------------------------------------------------------------------------
-    // STATE: CHASE DISC
-    // -------------------------------------------------------------------------
     private void ExecuteChaseDisc()
     {
         if (!disc) return;
 
-        // Move toward the disc
-        SetAgentDestination(disc.transform.position);
-
-        // Auto-catch when close enough
-        float distToDisc = GetDistanceToDisc();
-        if (distToDisc <= botData.catchRadius)
-        {
-            CatchDisc();
-        }
+        Vector3 chaseTarget = GetDiscChaseTarget();
+        _debugLastChaseTarget = chaseTarget;  // for Gizmo visualization
+        SetAgentDestination(chaseTarget);
     }
 
-    // -------------------------------------------------------------------------
-    // STATE: HOLD AND PASS
-    // -------------------------------------------------------------------------
     private void ExecuteHoldAndPass()
     {
         if (!_isHoldingDisc)
         {
-            // Support — move to open space near disc
             if (disc)
             {
-                Vector3 supportPos = GetSupportPosition();
-                SetAgentDestination(supportPos);
+                SetAgentDestination(GetSupportPosition());
             }
             return;
         }
 
-        // Has disc — wait for holdDecisionTime then pass
+        if (IsUnderPressure())
+        {
+            AttemptPass();
+            return;
+        }
+
         if (_holdTimer >= botData.holdDecisionTime)
         {
             AttemptPass();
         }
         else
         {
-            // Stop and wait while deciding
-            _agent.ResetPath();
+            if (_agent && _agent.isOnNavMesh)
+            {
+                _agent.ResetPath();
+            }
         }
     }
 
-    // -------------------------------------------------------------------------
-    // STATE: SHOOT AT GOAL
-    // -------------------------------------------------------------------------
+    private bool IsUnderPressure()
+    {
+        float pressureRange = botData.dashTriggerRange * 1.5f;
+        TeamType enemyTeam = GetEnemyTeam();
+
+        PlayerDiscHandler[] allHandlers =
+            FindObjectsByType<PlayerDiscHandler>(FindObjectsSortMode.None);
+
+        for (int i = 0; i < allHandlers.Length; i++)
+        {
+            TeamType handlerTeam = GetTeamFromGameObject(allHandlers[i].gameObject);
+            if (handlerTeam != enemyTeam) continue;
+
+            float dist = Vector3.Distance(transform.position, allHandlers[i].transform.position);
+            if (dist <= pressureRange) return true;
+        }
+
+        BotAIController[] allBots =
+            FindObjectsByType<BotAIController>(FindObjectsSortMode.None);
+
+        for (int i = 0; i < allBots.Length; i++)
+        {
+            if (allBots[i] == this) continue;
+            if (allBots[i].Team != enemyTeam) continue;
+
+            float dist = Vector3.Distance(transform.position, allBots[i].transform.position);
+            if (dist <= pressureRange) return true;
+        }
+
+        return false;
+    }
+
     private void ExecuteShootAtGoal()
     {
         if (!_isHoldingDisc)
         {
             TransitionTo(BotState.ChaseDisc);
+            return;
+        }
+
+        // NEW: even mid-approach to shoot, bail into a pass if pressured —
+        // closes the gap where a bot would tunnel-vision toward the goal
+        // and get dashed/staggered without ever considering a safer pass.
+        if (IsUnderPressure())
+        {
+            AttemptPass();
             return;
         }
 
@@ -312,38 +349,30 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
 
         if (distToGoal <= botData.shootRange)
         {
-            // In range — shoot now
             ShootAtGoal();
         }
         else
         {
-            // Move closer to the goal
             SetAgentDestination(goalPosition);
         }
     }
 
-    // -------------------------------------------------------------------------
-    // STATE: DEFEND
-    // -------------------------------------------------------------------------
     private void ExecuteDefend()
     {
         if (!ownGoal) return;
 
-        // Find the enemy carrier position
         Transform enemyCarrier = GetEnemyDiscCarrier();
 
         Vector3 defendTarget;
 
         if (enemyCarrier)
         {
-            // Position between own goal and enemy carrier
             Vector3 goalPos = ownGoal.transform.position;
             Vector3 enemyPos = enemyCarrier.position;
             defendTarget = Vector3.Lerp(goalPos, enemyPos, 0.4f);
         }
         else
         {
-            // No specific threat — stand in front of own goal
             defendTarget = ownGoal.transform.position +
                            ownGoal.transform.forward * botData.defendRadius;
         }
@@ -351,26 +380,20 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
         SetAgentDestination(defendTarget);
     }
 
-    // -------------------------------------------------------------------------
-    // STATE: INTERCEPT
-    // -------------------------------------------------------------------------
     private void ExecuteIntercept()
     {
         Transform enemyCarrier = GetEnemyDiscCarrier();
 
         if (!enemyCarrier)
         {
-            // Lost target — re-evaluate
             TransitionTo(BotState.Defend);
             return;
         }
 
         float distToEnemy = Vector3.Distance(transform.position, enemyCarrier.position);
 
-        // Move toward enemy carrier
         SetAgentDestination(enemyCarrier.position);
 
-        // Attempt dash when close enough
         if (distToEnemy <= botData.dashTriggerRange && !_dashOnCooldown)
         {
             AttemptDash(enemyCarrier);
@@ -380,10 +403,6 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
     // -------------------------------------------------------------------------
     // DISC INTERACTION
     // -------------------------------------------------------------------------
-
-    /// <summary>
-    /// Bot catches the disc — transitions it to Held state.
-    /// </summary>
     private void CatchDisc()
     {
         if (_isHoldingDisc) return;
@@ -393,26 +412,23 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
         _isHoldingDisc = true;
         _holdTimer = 0f;
 
-        disc.SetHeld(transform);
+        // Smooth magnetic-pull catch for visual consistency with the player.
+        disc.RequestCatch(transform);
         onBotCaughtDisc.Invoke();
 
         Debug.Log($"[BotAIController] {gameObject.name} caught the disc.");
     }
 
-    /// <summary>
-    /// Bot throws the disc toward a target position.
-    /// </summary>
     private void ThrowDiscAt(Vector3 targetPosition, float speedOverride = -1f)
     {
         if (!_isHoldingDisc || !disc) return;
 
         Vector3 direction = (targetPosition - disc.transform.position).normalized;
-
-        // Add slight inaccuracy based on botData.aimInaccuracy
         direction = AddAimInaccuracy(direction);
 
         _isHoldingDisc = false;
         _holdTimer = 0f;
+        _catchBuffer = CatchBufferDuration;
 
         disc.SetPassed(direction, speedOverride);
         onBotThrewDisc.Invoke();
@@ -420,35 +436,48 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
         Debug.Log($"[BotAIController] {gameObject.name} threw the disc toward {targetPosition}.");
     }
 
-    /// <summary>
-    /// Bot attempts to pass to its teammate.
-    /// Falls back to shooting if no valid teammate found.
-    /// </summary>
     private void AttemptPass()
     {
         if (!_isHoldingDisc) return;
 
-        // Find a valid teammate to pass to
         Transform passTarget = GetBestPassTarget();
 
         if (passTarget)
         {
             ThrowDiscAt(passTarget.position);
             Debug.Log($"[BotAIController] {gameObject.name} passed to {passTarget.name}.");
+            return;
         }
-        else
+
+        if (ShouldShoot())
         {
-            // No teammate available — shoot instead
-            if (ShouldShoot())
-            {
-                ShootAtGoal();
-            }
+            ShootAtGoal();
+            return;
+        }
+
+        if (IsUnderPressure())
+        {
+            Vector3 panicTarget = transform.position + transform.forward * 10f;
+            ThrowDiscAt(panicTarget);
+            Debug.Log($"[BotAIController] {gameObject.name} panic-threw the disc under pressure!");
+            return;
+        }
+
+        // SAFETY NET (fixes the freeze): no valid pass, can't shoot (goal not yet
+        // active), and no enemy pressure detected. Without this, the bot would hold
+        // the disc and do nothing until the 30s attack timer forcibly resets
+        // possession — a visible, game-breaking freeze from the player's perspective.
+        if (_holdTimer >= botData.forcedReleaseTimeout)
+        {
+            Vector3 safeTarget = transform.position + transform.forward * 8f;
+            ThrowDiscAt(safeTarget);
+
+            Debug.LogWarning($"[BotAIController] {gameObject.name} forced a safety release " +
+                             $"after {_holdTimer:F1}s with no valid pass/shot/pressure option " +
+                             "Check teammate assignment and passSearchRadius in the Inspector");
         }
     }
 
-    /// <summary>
-    /// Bot shoots at the opposing goal with aim inaccuracy applied.
-    /// </summary>
     private void ShootAtGoal()
     {
         if (!_isHoldingDisc || !disc) return;
@@ -463,11 +492,6 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
     // -------------------------------------------------------------------------
     // DASH / INTERCEPT
     // -------------------------------------------------------------------------
-
-    /// <summary>
-    /// Bot dashes toward the enemy carrier.
-    /// Uses PlayerCombat if available, otherwise applies direct force.
-    /// </summary>
     private void AttemptDash(Transform target)
     {
         if (_dashOnCooldown) return;
@@ -475,7 +499,6 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
         _dashOnCooldown = true;
         _dashCooldownTimer = botData.dashCooldown;
 
-        // Check if enemy is holding disc (stagger condition)
         PlayerDiscHandler enemyDiscHandler = target.GetComponent<PlayerDiscHandler>();
         BotAIController enemyBot = target.GetComponent<BotAIController>();
         bool targetHasDisc = (enemyDiscHandler && enemyDiscHandler.IsHoldingDisc())
@@ -488,15 +511,12 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
 
         Vector3 knockBackDirection = (target.position - transform.position).normalized;
 
-        // Force enemy to drop disc
         if (enemyDiscHandler) enemyDiscHandler.OnDiscLost();
         if (enemyBot) enemyBot.OnDiscLost();
 
-        // Release disc into open space
         Vector3 discKnockaway = (knockBackDirection + Vector3.up * 3f).normalized;
         disc.SetFree(discKnockaway * 6f);
 
-        // Apply stagger to enemy
         staggerable.ApplyStagger(knockBackDirection, 3f);
 
         Debug.Log($"[BotAIController] {gameObject.name} dashed into {target.name} — stagger applied!");
@@ -505,7 +525,6 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
     // -------------------------------------------------------------------------
     // DECISION HELPERS
     // -------------------------------------------------------------------------
-
     private bool ShouldShoot()
     {
         if (!_isHoldingDisc) return false;
@@ -525,10 +544,11 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
         return dist <= botData.interceptTriggerRange;
     }
 
-    private bool IsDiscFree()
+    private bool IsDiscChaseable()
     {
         if (!disc) return false;
-        return disc.currentState == DiscController.DiscState.Free;
+        return disc.currentState == DiscController.DiscState.Free ||
+               disc.currentState == DiscController.DiscState.Passed;
     }
 
     private bool EnemyTeamHasDisc()
@@ -536,14 +556,13 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
         if (!disc) return false;
         if (disc.currentState != DiscController.DiscState.Held) return false;
 
-        return GetEnemyDiscCarrier();
+        return GetEnemyDiscCarrier() != null;
     }
 
     private bool TeammateHasDisc()
     {
         if (!disc) return false;
         if (disc.currentState != DiscController.DiscState.Held) return false;
-
         if (!teammate) return false;
 
         PlayerDiscHandler teammateHandler = teammate.GetComponent<PlayerDiscHandler>();
@@ -555,24 +574,15 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
         return teammateHolding;
     }
 
-    /// <summary>
-    /// Finds the enemy character currently holding the disc.
-    /// Checks both PlayerDiscHandler and BotAIController.
-    /// </summary>
     private Transform GetEnemyDiscCarrier()
     {
         if (!disc) return null;
         if (disc.currentState != DiscController.DiscState.Held) return null;
-
-        // The disc's parent is the current holder when SetHeld() was using parenting.
-        // Since we fixed SetHeld() to NOT parent, we use PossessionManager instead.
         if (!possessionManager) return null;
 
-        // If enemy team is possessing, find their carrier in the scene
         TeamType enemyTeam = GetEnemyTeam();
         if (possessionManager.PossessingTeam != enemyTeam) return null;
 
-        // Scan for any character holding the disc that is on the enemy team
         PlayerDiscHandler[] allHandlers = FindObjectsByType<PlayerDiscHandler>(FindObjectsSortMode.None);
         for (int i = 0; i < allHandlers.Length; i++)
         {
@@ -601,33 +611,36 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
         return null;
     }
 
-    /// <summary>
-    /// Finds the best teammate to pass to.
-    /// Prefers teammates closer to the opposing goal and not covered by enemies.
-    /// </summary>
     private Transform GetBestPassTarget()
     {
         if (!teammate) return null;
 
-        float distToTeammate = Vector3.Distance(transform.position, teammate.position);
+        // Defensive check: confirm the assigned teammate Transform is actually on
+        // OUR team. Catches Inspector mis-wiring (e.g., accidentally dragging an
+        // enemy bot into the teammate slot) that would otherwise cause the bot to
+        // "pass" the disc straight to an opponent.
+        TeamType teammateTeam = GetTeamFromGameObject(teammate.gameObject);
+        if (teammateTeam != Team)
+        {
+            Debug.LogError($"[BotAIController] {gameObject.name} — teammate field is " +
+                           $"assigned to {teammate.name} which is on team {teammateTeam}, " +
+                           $"not {Team}! Fix the Inspector reference");
+            return null;
+        }
 
+        float distToTeammate = Vector3.Distance(transform.position, teammate.position);
         if (distToTeammate > botData.passSearchRadius) return null;
 
-        // Make sure teammate is not currently staggered
         IStaggerable teammateStaggerable = teammate.GetComponent<IStaggerable>();
         if (teammateStaggerable != null && teammateStaggerable.IsStaggered()) return null;
 
         return teammate;
     }
 
-    /// <summary>
-    /// Returns a support position offset from the disc — open space for receiving a pass.
-    /// </summary>
     private Vector3 GetSupportPosition()
     {
         if (!disc) return transform.position;
 
-        // Stand to the side of the disc carrier at a comfortable pass distance
         Vector3 offset = new Vector3(4f, 0f, 3f);
         return disc.transform.position + offset;
     }
@@ -646,16 +659,12 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
         return TeamType.None;
     }
 
-    // -------------------------------------------------------------------------
-    // AIM INACCURACY
-    // -------------------------------------------------------------------------
     private Vector3 AddAimInaccuracy(Vector3 direction)
     {
         if (botData.aimInaccuracy <= 0f) return direction;
 
         float spread = botData.aimInaccuracy;
 
-        // Random offset within a cone — no Mathf.Random so we use Unity's Random
         Vector3 randomOffset = new Vector3(
             Random.Range(-spread, spread),
             Random.Range(-spread * 0.5f, spread * 0.5f),
@@ -665,35 +674,123 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
         return (direction + randomOffset).normalized;
     }
 
-    // -------------------------------------------------------------------------
-    // FSM TRANSITION
-    // -------------------------------------------------------------------------
     private void TransitionTo(BotState newState)
     {
         if (_currentState == newState) return;
-
         _currentState = newState;
     }
-
-    // -------------------------------------------------------------------------
-    // NAVMESH HELPER
-    // -------------------------------------------------------------------------
+    
+    // NAVMESH HELPERS
     private void SetAgentDestination(Vector3 destination)
     {
         if (!_agent || !_agent.isOnNavMesh) return;
         if (_agent.isStopped) _agent.isStopped = false;
-        _agent.SetDestination(destination);
+
+        bool success = _agent.SetDestination(destination);
+        if (!success)
+        {
+            Debug.LogWarning($"[BotAIController] {gameObject.name} failed to path to {destination}.");
+        }
     }
 
-    private float GetDistanceToDisc()
+    /// <summary>
+    /// Predicts the disc's near-future position and clamps it onto the NavMesh.
+    /// FIXES Bug 1: right after a lofted throw, the disc hangs in the air well above
+    /// the floor (throwLoftAngle + reduced gravityScale). Without clamping, the raw
+    /// predicted target is too far from any walkable surface, NavMeshAgent.SetDestination
+    /// silently fails, and the agent freezes since it has no valid path to move along.
+    /// </summary>
+    private Vector3 GetDiscChaseTarget()
+    {
+        if (!disc) return transform.position;
+
+        Vector3 discPosition = disc.transform.position;
+
+        // STEP 1 — Predict horizontal (XZ) lead only. Vertical velocity is irrelevant
+        // here because we project straight down onto the floor regardless of height.
+        Vector3 predictedXZ = discPosition;
+        if (_discRigidbody)
+        {
+            Vector3 flatVelocity = _discRigidbody.linearVelocity;
+            flatVelocity.y = 0f;
+            predictedXZ += flatVelocity * botData.chaseLeadTime;
+        }
+
+        // STEP 2 — Project straight down onto the floor from the predicted XZ point.
+        Vector3 floorPoint;
+        if (TryProjectOntoFloor(predictedXZ, out floorPoint))
+        {
+            NavMeshHit navHit;
+            if (NavMesh.SamplePosition(floorPoint, out navHit, botData.navMeshSnapTolerance, NavMesh.AllAreas))
+            {
+                return navHit.position;
+            }
+        }
+
+        // STEP 3 — Fallback: floor raycast from the disc's actual current position
+        // (no horizontal prediction), in case the predicted point overshot past a wall/gap.
+        if (TryProjectOntoFloor(discPosition, out floorPoint))
+        {
+            NavMeshHit navHit;
+            if (NavMesh.SamplePosition(floorPoint, out navHit, botData.navMeshSnapTolerance, NavMesh.AllAreas))
+            {
+                return navHit.position;
+            }
+        }
+
+        // STEP 4 — Fallback: the floor raycast itself found nothing beneath the disc
+        // (e.g., disc is directly over a goal mouth / out-of-bounds gap with no floor
+        // collider). Widen the search directly around the disc's raw 3D position.
+        NavMeshHit wideHit;
+        if (NavMesh.SamplePosition(discPosition, out wideHit, botData.navMeshFallbackSampleDistance, NavMesh.AllAreas))
+        {
+            return wideHit.position;
+        }
+
+        // STEP 5 — Absolute last resort. Only reached if the entire arena floor
+        // near the disc is unbaked/unwalkable. Hold current position rather than
+        // sending the agent toward a location NavMesh has no path to.
+        Debug.LogWarning($"[BotAIController] {gameObject.name} could not resolve any valid " +
+                      $"NavMesh point near disc position {discPosition}. Holding position.");
+        return transform.position;
+    }
+
+    /// <summary>
+    /// Casts straight down from well above the given XZ column to find the floor.
+    /// Works regardless of how high the disc currently is (floor-level, mid-throw,
+    /// or bouncing off the ceiling) because raycast length is independent of the
+    /// NavMesh sampling radius problem described above.
+    /// </summary>
+    private bool TryProjectOntoFloor(Vector3 origin, out Vector3 floorPoint)
+    {
+        floorPoint = origin;
+
+        // Fixed origin — always starts above the true ceiling, independent of
+        // where the disc currently is at the moment this is called.
+        Vector3 rayStart = new Vector3(origin.x, botData.arenaCeilingHeight + 5f, origin.z);
+
+        // Ray must travel the full vertical span: from above the ceiling, past the
+        // ceiling itself, past the disc at any height, all the way down to the floor.
+        float rayLength = botData.arenaCeilingHeight + 10f;
+
+        RaycastHit hit;
+        if (Physics.Raycast(rayStart, Vector3.down, out hit, rayLength, botData.floorLayerMask))
+        {
+            floorPoint = hit.point;
+            return true;
+        }
+
+        return false;
+    }
+
+    private float GetHorizontalDistanceToDisc()
     {
         if (!disc) return float.MaxValue;
-        return Vector3.Distance(transform.position, disc.transform.position);
+        Vector3 flat = disc.transform.position - transform.position;
+        flat.y = 0f;
+        return flat.magnitude;
     }
 
-    // -------------------------------------------------------------------------
-    // COOLDOWN TICKING
-    // -------------------------------------------------------------------------
     private void TickDashCooldown()
     {
         if (!_dashOnCooldown) return;
@@ -755,13 +852,11 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
         _isStaggered = true;
         _staggerTimer = 0f;
 
-        // Drop disc if holding
         if (_isHoldingDisc)
         {
             OnDiscLost();
         }
 
-        // Apply physical knockBack via NavMeshAgent warp
         Vector3 knockBackTarget = transform.position + knockbackDirection * 0.8f;
         if (_agent && _agent.isOnNavMesh)
         {
@@ -782,14 +877,13 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
     // -------------------------------------------------------------------------
     public void ResetToSpawn(Vector3 spawnPosition, Quaternion spawnRotation)
     {
-        // Clear all state
         _isHoldingDisc = false;
         _holdTimer = 0f;
+        _catchBuffer = 0;
         _isStaggered = false;
         _staggerTimer = 0f;
         _currentState = BotState.Idle;
 
-        // Warp NavMeshAgent to spawn position
         if (_agent && _agent.isOnNavMesh)
         {
             _agent.Warp(spawnPosition);
@@ -855,5 +949,15 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
             Debug.LogWarning($"[BotAIController] {gameObject.name} — teammate not assigned.");
         if (!GetComponent<NavMeshAgent>())
             Debug.LogError($"[BotAIController] {gameObject.name} — NavMeshAgent component missing!");
+    }
+    
+    private void OnDrawGizmos()
+    {
+        if (!Application.isPlaying) return;
+        if (_currentState != BotState.ChaseDisc) return;
+
+        Gizmos.color = Color.cyan;
+        Gizmos.DrawWireSphere(_debugLastChaseTarget, 0.4f);
+        Gizmos.DrawLine(transform.position, _debugLastChaseTarget);
     }
 }

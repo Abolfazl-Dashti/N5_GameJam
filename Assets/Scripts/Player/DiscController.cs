@@ -1,4 +1,4 @@
-using System;
+using System.Collections;
 using UnityEngine;
 using UnityEngine.Events;
 
@@ -6,7 +6,11 @@ public class DiscController : MonoBehaviour
 {
     // ScriptableObjects References
     [SerializeField] private DiscData discData;
-    
+
+    [Header("Catch Assist")]
+    [Tooltip("Duration of the smooth 'magnetic pull' animation when a character catches the disc.")]
+    [SerializeField] private float catchPullDuration = 0.08f;
+
     // Parameters
     private Rigidbody _rb;
     public DiscState currentState = DiscState.Free;
@@ -17,6 +21,10 @@ public class DiscController : MonoBehaviour
     private int _ceilingLayer;
     private Collider _collider;
 
+    // Catch pull state
+    private Coroutine _pullRoutine;
+    private bool _isBeingPulled;
+
     public enum DiscState
     {
         Free,  // no owner
@@ -26,16 +34,16 @@ public class DiscController : MonoBehaviour
 
     [Tooltip("Fires when disc becomes Free (no owner). Passes last owner Transform (can be null).")]
     public UnityEvent<Transform> onDiscReleased;
-    
+
     [Tooltip("Fires when disc is picked up / held. Passes the holder's Transform.")]
     public UnityEvent<Transform> onDiscHeld;
-    
+
     [Tooltip("Fires when disc is thrown/passed. Passes the thrower's Transform.")]
     public UnityEvent<Transform> onDiscPassed;
-    
+
     [Tooltip("Fires on any arena surface rebound. Passes the new velocity after boost.")]
     public UnityEvent<Vector3> onDiscRebounded;
-    
+
     private void Awake()
     {
         _rb = GetComponent<Rigidbody>();
@@ -60,6 +68,11 @@ public class DiscController : MonoBehaviour
     private void LateUpdate()
     {
         if (currentState != DiscState.Held || !_currentHolder) return;
+
+        // Let the catch-pull coroutine control position/rotation during the
+        // brief catch animation window — don't fight it here.
+        if (_isBeingPulled) return;
+
         transform.position = _currentHolder.TransformPoint(discData.holdOffset);
         transform.rotation = _currentHolder.rotation;
     }
@@ -70,7 +83,7 @@ public class DiscController : MonoBehaviour
         Vector3 customGravity = Physics.gravity * discData.gravityScale;
         _rb.AddForce(customGravity, ForceMode.Acceleration);
     }
-    
+
     // Collision & Rebound Logic
     private void OnCollisionEnter(Collision collision)
     {
@@ -82,9 +95,21 @@ public class DiscController : MonoBehaviour
         bool hitFloor = hitLayer == _floorLayer;
         bool hitCeiling = hitLayer == _ceilingLayer;
 
-        // Only apply our custom rebound to tagged arena surfaces
-        if (!hitWall && !hitFloor && !hitCeiling) return;
-        
+        if (!hitWall && !hitFloor && !hitCeiling)
+        {
+            // SAFETY NET: the disc should never physically collide with a character.
+            // The Layer Collision Matrix (Disc <-> Character unchecked) should prevent
+            // this entirely, but if it still happens due to misconfiguration, cancel
+            // whatever bounce impulse PhysX already applied so the disc keeps flying
+            // on its original trajectory instead of feeling like a solid wall.
+            IDiscInteractor interactor = collision.gameObject.GetComponent<IDiscInteractor>();
+            if (interactor != null)
+            {
+                _rb.linearVelocity = _velocityBeforeCollision;
+            }
+            return;
+        }
+
         // Grab the first contact normal — most reliable single-contact surface read
         Vector3 surfaceNormal = collision.contacts[0].normal;
         Vector3 reflectedDirection = Vector3.Reflect(_velocityBeforeCollision.normalized, surfaceNormal);
@@ -116,33 +141,79 @@ public class DiscController : MonoBehaviour
         // Broadcast rebound event so VFX, SFX, and AI can react
         onDiscRebounded.Invoke(newVelocity);
     }
-    
-    public void SetHeld(Transform holder)
+
+    /// <summary>
+    /// Smooth "magnetic pull" catch — animates the disc from its current position
+    /// into the holder's hand over a short duration for better game feel.
+    /// currentState becomes Held IMMEDIATELY (preventing double-catch races) even
+    /// though the visual position finishes animating a few frames later.
+    /// </summary>
+    public void RequestCatch(Transform holder)
     {
-        if (!holder)
-        {
-            Debug.LogWarning("[DiscController] SetHeld called with null holder.");
-            return;
-        }
+        if (!holder) return;
+        if (currentState == DiscState.Held) return;
+
+        CancelPullRoutine();
+        _pullRoutine = StartCoroutine(PullAndHoldRoutine(holder));
+    }
+
+    private IEnumerator PullAndHoldRoutine(Transform holder)
+    {
+        _isBeingPulled = true;
 
         currentState = DiscState.Held;
         _currentHolder = holder;
 
-        // Make kinematic so physics doesn't fight the hand position
+        // Zero out velocity WHILE STILL DYNAMIC — must happen before going kinematic,
+        // otherwise Unity warns ("Setting velocity of a kinematic body is not supported").
+        if (!_rb.isKinematic)
+        {
+            _rb.linearVelocity = Vector3.zero;
+            _rb.angularVelocity = Vector3.zero;
+        }
+
+        // NOW switch to kinematic so the hand-follow position isn't fought by physics.
         _rb.isKinematic = true;
-        _rb.linearVelocity = Vector3.zero;
-        _rb.angularVelocity = Vector3.zero;
-        
+
         if (_collider) _collider.isTrigger = true;
 
-        // Parent to the holder so it moves with them automatically
         transform.SetParent(null, true);
+
+        Vector3 startPosition = transform.position;
+        Quaternion startRotation = transform.rotation;
+        float elapsed = 0f;
+
+        while (elapsed < catchPullDuration)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / catchPullDuration);
+
+            Vector3 targetPosition = holder.TransformPoint(discData.holdOffset);
+            transform.position = Vector3.Lerp(startPosition, targetPosition, t);
+            transform.rotation = Quaternion.Slerp(startRotation, holder.rotation, t);
+
+            yield return null;
+        }
+
         transform.position = holder.TransformPoint(discData.holdOffset);
         transform.rotation = holder.rotation;
 
+        _isBeingPulled = false;
+        _pullRoutine = null;
+
         onDiscHeld.Invoke(holder);
     }
-    
+
+    private void CancelPullRoutine()
+    {
+        if (_pullRoutine != null)
+        {
+            StopCoroutine(_pullRoutine);
+            _pullRoutine = null;
+        }
+        _isBeingPulled = false;
+    }
+
     public void SetPassed(Vector3 direction, float speedOverride = -1f)
     {
         if (currentState != DiscState.Held)
@@ -151,32 +222,33 @@ public class DiscController : MonoBehaviour
             return;
         }
 
+        CancelPullRoutine();
+
         Transform thrower = _currentHolder;
 
-        // Detach from holder before re-enabling physics
         transform.SetParent(null, true);
 
         currentState = DiscState.Passed;
         _currentHolder = null;
-        
-        if (_collider) _collider.isTrigger = false;   // collide with walls again
+
+        if (_collider) _collider.isTrigger = false;
         _rb.isKinematic = false;
-        
+
         float throwSpeed = speedOverride > 0f ? speedOverride : discData.throwSpeed;
         Vector3 throwVelocity = direction.normalized * throwSpeed;
         _rb.linearVelocity = throwVelocity;
-        
-        // Add spin torque for visual feedback — disc should rotate on its axis
+
         Vector3 spinAxis = Vector3.Cross(direction.normalized, Vector3.up);
         _rb.AddTorque(spinAxis * discData.spinTorque, ForceMode.Impulse);
-        
-        // Seed velocity tracker immediately so first collision has accurate data
+
         _velocityBeforeCollision = throwVelocity;
         onDiscPassed.Invoke(thrower);
     }
-    
+
     public void SetFree(Vector3 releaseVelocity = default)
     {
+        CancelPullRoutine();
+
         Transform lastHolder = _currentHolder;
 
         transform.SetParent(null, true);
@@ -191,7 +263,7 @@ public class DiscController : MonoBehaviour
         _velocityBeforeCollision = releaseVelocity;
         onDiscReleased.Invoke(lastHolder);
     }
-    
+
     public void Redirect(Vector3 redirectDirection, float speedRetention = 0.9f)
     {
         if (currentState == DiscState.Held)
@@ -214,7 +286,7 @@ public class DiscController : MonoBehaviour
 
         onDiscReleased.Invoke(null);
     }
-    
+
     private void EnforceSpeedLimits()
     {
         if (currentState == DiscState.Held) return;
@@ -230,25 +302,14 @@ public class DiscController : MonoBehaviour
             _rb.linearVelocity = _rb.linearVelocity.normalized * discData.minFreeSpeed;
         }
     }
-    
-    private void FollowHolderIfHeld()
-    {
-        if (currentState != DiscState.Held || !_currentHolder)
-        {
-            return;
-        }
 
-        // Confirm local position hasn't drifted
-        transform.localPosition = discData.holdOffset;
-    }
-    
     private void CacheLayerIntegers()
     {
         _wallLayer = LayerMask.NameToLayer(discData.wallLayerName);
         _floorLayer = LayerMask.NameToLayer(discData.floorLayerName);
         _ceilingLayer = LayerMask.NameToLayer(discData.ceilingLayerName);
     }
-    
+
     private void ValidateRigidbodySettings()
     {
         _rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
@@ -265,6 +326,8 @@ public class DiscController : MonoBehaviour
             Debug.LogWarning("[DiscController] ForceRelease called but disc is not Held.");
             return;
         }
+
+        CancelPullRoutine();
 
         transform.SetParent(null, true);
         currentState = DiscState.Free;

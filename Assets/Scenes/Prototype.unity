@@ -134,7 +134,7 @@ GameObject:
   - component: {fileID: 21276176}
   - component: {fileID: 21276178}
   - component: {fileID: 21276177}
-  m_Layer: 6
+  m_Layer: 10
   m_Name: Bot1_opponent
   m_TagString: TeamB
   m_Icon: {fileID: 0}
@@ -1136,6 +1136,7 @@ MonoBehaviour:
   cameraTransform: {fileID: 927034437}
   disc: {fileID: 1877033726}
   playerController: {fileID: 659413542}
+  catchAssistAngle: 75
   onPlayerCaught:
     m_PersistentCalls:
       m_Calls: []
@@ -1938,7 +1939,7 @@ GameObject:
   - component: {fileID: 1167769089}
   - component: {fileID: 1167769091}
   - component: {fileID: 1167769090}
-  m_Layer: 6
+  m_Layer: 10
   m_Name: Bot1_PlayerTeammate
   m_TagString: TeamA
   m_Icon: {fileID: 0}
@@ -2613,7 +2614,7 @@ GameObject:
   - component: {fileID: 1852562991}
   - component: {fileID: 1852562993}
   - component: {fileID: 1852562992}
-  m_Layer: 6
+  m_Layer: 10
   m_Name: Bot2_opponent
   m_TagString: TeamB
   m_Icon: {fileID: 0}
@@ -2928,6 +2929,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DiscController
   discData: {fileID: 11400000, guid: 0747b62ffb34a7544b64469361938d1e, type: 2}
+  catchPullDuration: 0.08
   currentState: 0
   onDiscReleased:
     m_PersistentCalls:

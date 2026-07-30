@@ -12,8 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 08c16bab02138404b9d77e630a113913, type: 3}
   m_Name: DiscHandler
   m_EditorClassIdentifier: Assembly-CSharp::DiscHandlerData
-  catchRadius: 1.8
-  catchCastRange: 4
+  catchRadius: 2
+  catchCastRange: 12
   catchCastRadius: 10
   discLayerMask:
     serializedVersion: 2
@@ -22,6 +22,6 @@ MonoBehaviour:
   maxThrowSpeed: 35
   maxChargeTime: 1.2
   throwLoftAngle: 3
-  redirectRange: 70
+  redirectRange: 50
   redirectSpeedRetention: 0.95
   redirectCooldown: 0.4

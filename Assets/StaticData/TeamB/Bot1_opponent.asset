@@ -17,6 +17,7 @@ MonoBehaviour:
   angularSpeed: 300
   acceleration: 12
   catchRadius: 1.8
+  catchVerticalTolerance: 1.5
   redirectRadius: 2.5
   shootRange: 12
   aimInaccuracy: 0.12
@@ -27,3 +28,13 @@ MonoBehaviour:
   dashTriggerRange: 3
   dashCooldown: 1.8
   stateEvaluationInterval: 0.3
+  navMeshSampleDistance: 10
+  floorLayerMask:
+    serializedVersion: 2
+    m_Bits: 256
+  floorProjectionRayLength: 50
+  navMeshSnapTolerance: 2
+  navMeshFallbackSampleDistance: 10
+  chaseLeadTime: 0.3
+  arenaCeilingHeight: 100
+  forcedReleaseTimeout: 2
