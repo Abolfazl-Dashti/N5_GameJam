@@ -189,7 +189,7 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
 
         if (_isHoldingDisc)
         {
-            if (ShouldShoot())
+            if (CanAttackGoal())
             {
                 TransitionTo(BotState.ShootAtGoal);
             }
@@ -225,6 +225,13 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
         }
 
         TransitionTo(BotState.Idle);
+    }
+    
+    private bool CanAttackGoal()
+    {
+        if (!_isHoldingDisc) return false;
+        if (!opposingGoal) return false;
+        return opposingGoal.IsGoalActive();
     }
 
     private void ExecuteCurrentState()
@@ -644,9 +651,12 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
     private Vector3 GetSupportPosition()
     {
         if (!disc) return transform.position;
+        if (!opposingGoal) return disc.transform.position;
 
-        Vector3 offset = new Vector3(4f, 0f, 3f);
-        return disc.transform.position + offset;
+        Vector3 towardGoal = (opposingGoal.transform.position - disc.transform.position).normalized;
+        Vector3 lateralOffset = Vector3.Cross(towardGoal, Vector3.up) * 4f;
+
+        return disc.transform.position + towardGoal * 5f + lateralOffset;
     }
 
     private TeamType GetEnemyTeam()

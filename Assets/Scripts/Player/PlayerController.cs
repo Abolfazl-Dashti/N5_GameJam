@@ -8,7 +8,7 @@ public class PlayerController : MonoBehaviour, IStaggerable, IResettable
     [SerializeField] private float jumpForce;
     [SerializeField] private LayerMask groundLayer;
     [SerializeField] private float groundCheckDistance;
-    [SerializeField] private float groundCheckOriginOffset = 0.9f;
+    // [SerializeField] private float groundCheckOriginOffset = 0.9f;
     
     // Look Settings
     [SerializeField] private Transform cameraTransform;

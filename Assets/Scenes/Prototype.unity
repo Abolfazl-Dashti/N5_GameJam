@@ -1116,7 +1116,6 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 256
   groundCheckDistance: 1.12
-  groundCheckOriginOffset: 0.9
   cameraTransform: {fileID: 927034437}
   rb: {fileID: 659413536}
   moveInput: {x: 0, y: 0}
