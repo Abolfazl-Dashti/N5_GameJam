@@ -21,8 +21,8 @@ MonoBehaviour:
   redirectRadius: 2.5
   shootRange: 12
   aimInaccuracy: 0.12
-  passSearchRadius: 18
-  holdDecisionTime: 1
+  passSearchRadius: 70
+  holdDecisionTime: 0.9
   defendRadius: 8
   interceptTriggerRange: 6
   dashTriggerRange: 3

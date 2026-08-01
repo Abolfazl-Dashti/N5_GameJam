@@ -112,9 +112,12 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
 
         ExecuteCurrentState();
 
-        if (!_isHoldingDisc)
+        if (_isHoldingDisc)
         {
             _holdTimer += Time.deltaTime;
+        }
+        else
+        {
             AttemptProximityCatch();
         }
     }
@@ -496,18 +499,19 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
     {
         if (_dashOnCooldown) return;
 
-        _dashOnCooldown = true;
-        _dashCooldownTimer = botData.dashCooldown;
-
         PlayerDiscHandler enemyDiscHandler = target.GetComponent<PlayerDiscHandler>();
         BotAIController enemyBot = target.GetComponent<BotAIController>();
         bool targetHasDisc = (enemyDiscHandler && enemyDiscHandler.IsHoldingDisc())
-                          || (enemyBot && enemyBot.IsHoldingDisc());
+                             || (enemyBot && enemyBot.IsHoldingDisc());
 
         if (!targetHasDisc) return;
 
         IStaggerable staggerable = target.GetComponent<IStaggerable>();
         if (staggerable == null || staggerable.IsStaggered()) return;
+
+        // CHANGED: cooldown only starts once we know the dash will actually happen.
+        _dashOnCooldown = true;
+        _dashCooldownTimer = botData.dashCooldown;
 
         Vector3 knockBackDirection = (target.position - transform.position).normalized;
 
@@ -683,13 +687,39 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
     // NAVMESH HELPERS
     private void SetAgentDestination(Vector3 destination)
     {
-        if (!_agent || !_agent.isOnNavMesh) return;
+        if (!_agent) return;
+
+        if (!_agent.isOnNavMesh)
+        {
+            TryRecoverAgentOntoNavMesh();
+            if (!_agent.isOnNavMesh) return;
+        }
+
         if (_agent.isStopped) _agent.isStopped = false;
 
         bool success = _agent.SetDestination(destination);
         if (!success)
         {
             Debug.LogWarning($"[BotAIController] {gameObject.name} failed to path to {destination}.");
+        }
+    }
+    
+    // NEW: last-resort recovery if the agent is ever detected off the NavMesh.
+    // Prevents a permanent silent freeze.
+    private void TryRecoverAgentOntoNavMesh()
+    {
+        float recoverRadius = botData ? botData.navMeshFallbackSampleDistance : 10f;
+
+        NavMeshHit navHit;
+        if (NavMesh.SamplePosition(transform.position, out navHit, recoverRadius, NavMesh.AllAreas))
+        {
+            _agent.Warp(navHit.position);
+            Debug.LogWarning($"[BotAIController] {gameObject.name} was off the NavMesh — recovered to nearest point.");
+        }
+        else
+        {
+            Debug.LogError($"[BotAIController] {gameObject.name} is off the NavMesh and no recovery point " +
+                           "was found nearby. Check NavMesh coverage near this position.");
         }
     }
 
@@ -739,7 +769,7 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
         }
 
         // STEP 4 — Fallback: the floor raycast itself found nothing beneath the disc
-        // (e.g., disc is directly over a goal mouth / out-of-bounds gap with no floor
+        // (e.g., disc is directly over a goal Mouth / out-of-bounds gap with no floor
         // collider). Widen the search directly around the disc's raw 3D position.
         NavMeshHit wideHit;
         if (NavMesh.SamplePosition(discPosition, out wideHit, botData.navMeshFallbackSampleDistance, NavMesh.AllAreas))
@@ -827,7 +857,13 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
 
     public void OnDiscReceived(DiscController discController)
     {
-        disc = discController;
+        // CHANGED: keep the cached Rigidbody in sync if the disc reference ever changes.
+        if (discController && discController != disc)
+        {
+            disc = discController;
+            _discRigidbody = disc.GetComponent<Rigidbody>();
+        }
+
         CatchDisc();
     }
 
@@ -857,10 +893,16 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
             OnDiscLost();
         }
 
-        Vector3 knockBackTarget = transform.position + knockbackDirection * 0.8f;
         if (_agent && _agent.isOnNavMesh)
         {
-            _agent.Warp(knockBackTarget);
+            Vector3 knockBackTarget = transform.position + knockbackDirection * 0.8f;
+            NavMeshHit navHit;
+            if (NavMesh.SamplePosition(knockBackTarget, out navHit, 2f, NavMesh.AllAreas))
+            {
+                _agent.Warp(navHit.position);
+            }
+            // If no valid point is found nearby, skip the warp entirely — better to
+            // leave the bot in place than knock it fully off the NavMesh.
         }
 
         onBotStaggered.Invoke();
