@@ -266,10 +266,17 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
 
     private void ExecuteChaseDisc()
     {
+        // Safety net: never keep chasing the disc if we already have it.
+        if (_isHoldingDisc)
+        {
+            EvaluateState();
+            return;
+        }
+
         if (!disc) return;
 
         Vector3 chaseTarget = GetDiscChaseTarget();
-        _debugLastChaseTarget = chaseTarget;  // for Gizmo visualization
+        _debugLastChaseTarget = chaseTarget;
         SetAgentDestination(chaseTarget);
     }
 
@@ -369,17 +376,46 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
 
     private void ExecuteDefend()
     {
+        if (_isHoldingDisc)
+        {
+            EvaluateState();
+            return;
+        }
+
         if (!ownGoal) return;
 
         Transform enemyCarrier = GetEnemyDiscCarrier();
-
         Vector3 defendTarget;
 
         if (enemyCarrier)
         {
-            Vector3 goalPos = ownGoal.transform.position;
-            Vector3 enemyPos = enemyCarrier.position;
-            defendTarget = Vector3.Lerp(goalPos, enemyPos, 0.4f);
+            bool isPrimary = IsPrimaryDefender(enemyCarrier);
+
+            if (isPrimary)
+            {
+                // FIX: primary defender presses the carrier directly instead of
+                // parking at a static 40% lerp point that never closes the gap.
+                // This lets it actually enter interceptTriggerRange and dash.
+                defendTarget = enemyCarrier.position;
+            }
+            else
+            {
+                // FIX: secondary defender no longer duplicates the primary's target.
+                // It marks the OTHER attacker to cut off the easy return pass,
+                // instead of both bots clumping on the same spot.
+                Transform markTarget = GetSecondaryMarkTarget(enemyCarrier);
+
+                if (markTarget)
+                {
+                    Vector3 goalPos = ownGoal.transform.position;
+                    defendTarget = Vector3.Lerp(goalPos, markTarget.position, 0.5f);
+                }
+                else
+                {
+                    defendTarget = ownGoal.transform.position +
+                                   ownGoal.transform.forward * botData.defendRadius;
+                }
+            }
         }
         else
         {
@@ -392,6 +428,15 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
 
     private void ExecuteIntercept()
     {
+        // Safety net: this was the main source of "bot runs toward another bot
+        // while holding the disc." Never chase an enemy carrier once we
+        // already have the disc ourselves.
+        if (_isHoldingDisc)
+        {
+            EvaluateState();
+            return;
+        }
+
         Transform enemyCarrier = GetEnemyDiscCarrier();
 
         if (!enemyCarrier)
@@ -401,13 +446,60 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
         }
 
         float distToEnemy = Vector3.Distance(transform.position, enemyCarrier.position);
-
         SetAgentDestination(enemyCarrier.position);
 
         if (distToEnemy <= botData.dashTriggerRange && !_dashOnCooldown)
         {
             AttemptDash(enemyCarrier);
         }
+    }
+    
+    private bool IsPrimaryDefender(Transform enemyCarrier)
+    {
+        if (!enemyCarrier) return true;
+
+        float myDist = Vector3.Distance(transform.position, enemyCarrier.position);
+        int myId = GetInstanceID();
+
+        BotAIController[] allBots = FindObjectsByType<BotAIController>(FindObjectsSortMode.None);
+        for (int i = 0; i < allBots.Length; i++)
+        {
+            BotAIController other = allBots[i];
+            if (other == this) continue;
+            if (other.Team != Team) continue;
+
+            float otherDist = Vector3.Distance(other.transform.position, enemyCarrier.position);
+
+            if (otherDist < myDist) return false;
+            if (Mathf.Approximately(otherDist, myDist) && other.GetInstanceID() < myId) return false;
+        }
+
+        return true;
+    }
+    
+    private Transform GetSecondaryMarkTarget(Transform carrier)
+    {
+        TeamType enemyTeam = GetEnemyTeam();
+
+        PlayerDiscHandler[] allHandlers = FindObjectsByType<PlayerDiscHandler>(FindObjectsSortMode.None);
+        for (int i = 0; i < allHandlers.Length; i++)
+        {
+            Transform candidate = allHandlers[i].transform;
+            if (candidate == carrier) continue;
+            if (GetTeamFromGameObject(allHandlers[i].gameObject) != enemyTeam) continue;
+            return candidate;
+        }
+
+        BotAIController[] allBots = FindObjectsByType<BotAIController>(FindObjectsSortMode.None);
+        for (int i = 0; i < allBots.Length; i++)
+        {
+            Transform candidate = allBots[i].transform;
+            if (candidate == carrier) continue;
+            if (allBots[i].Team != enemyTeam) continue;
+            return candidate;
+        }
+
+        return null;
     }
 
     // -------------------------------------------------------------------------
