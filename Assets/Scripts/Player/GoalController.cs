@@ -91,6 +91,21 @@ public class GoalController : MonoBehaviour, IGoalActivating
         int currentMultiplier = possessionManager ? possessionManager.CurrentPassMultiplier : 1;
         ProcessGoal(scoringTeam, currentMultiplier);
     }
+    
+    // --------- For Goal Finding Bug in prototype(not stadium yet) ---------
+    // Returns the goal's real-world scoring position. The GoalController's own
+    // transform sits at the prefab/parent origin and does NOT reflect the goal's
+    // actual placement in the arena — the goalTriggerCollider child does, since
+    // it's the object that was actually moved into position for gameplay.
+    // AI and gameplay code MUST use this instead of transform.position.
+    public Vector3 GetGoalPosition()
+    {
+        if (goalTriggerCollider) return goalTriggerCollider.transform.position;
+
+        Debug.LogWarning($"[GoalController] {gameObject.name} — goalTriggerCollider not assigned, " +
+                         "falling back to parent transform.position (likely incorrect).");
+        return transform.position;
+    }
 
     /// <summary>
     /// A valid goal has been scored. Award points, notify systems, start pause.

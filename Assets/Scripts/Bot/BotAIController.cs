@@ -350,9 +350,6 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
             return;
         }
 
-        // NEW: even mid-approach to shoot, bail into a pass if pressured —
-        // closes the gap where a bot would tunnel-vision toward the goal
-        // and get dashed/staggered without ever considering a safer pass.
         if (IsUnderPressure())
         {
             AttemptPass();
@@ -361,7 +358,7 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
 
         if (!opposingGoal) return;
 
-        Vector3 goalPosition = opposingGoal.transform.position;
+        Vector3 goalPosition = opposingGoal.GetGoalPosition();
         float distToGoal = Vector3.Distance(transform.position, goalPosition);
 
         if (distToGoal <= botData.shootRange)
@@ -393,37 +390,42 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
 
             if (isPrimary)
             {
-                // FIX: primary defender presses the carrier directly instead of
-                // parking at a static 40% lerp point that never closes the gap.
-                // This lets it actually enter interceptTriggerRange and dash.
                 defendTarget = enemyCarrier.position;
             }
             else
             {
-                // FIX: secondary defender no longer duplicates the primary's target.
-                // It marks the OTHER attacker to cut off the easy return pass,
-                // instead of both bots clumping on the same spot.
                 Transform markTarget = GetSecondaryMarkTarget(enemyCarrier);
 
                 if (markTarget)
                 {
-                    Vector3 goalPos = ownGoal.transform.position;
+                    Vector3 goalPos = ownGoal.GetGoalPosition();
                     defendTarget = Vector3.Lerp(goalPos, markTarget.position, 0.5f);
                 }
                 else
                 {
-                    defendTarget = ownGoal.transform.position +
-                                   ownGoal.transform.forward * botData.defendRadius;
+                    defendTarget = GetDefendFallbackPosition();
                 }
             }
         }
         else
         {
-            defendTarget = ownGoal.transform.position +
-                           ownGoal.transform.forward * botData.defendRadius;
+            defendTarget = GetDefendFallbackPosition();
         }
 
         SetAgentDestination(defendTarget);
+    }
+    
+    // --------- For Goal Finding Bug in prototype(not stadium yet) ---------
+    private Vector3 GetDefendFallbackPosition()
+    {
+        if (!ownGoal) return transform.position;
+
+        Vector3 ownPos = ownGoal.GetGoalPosition();
+
+        if (!opposingGoal) return ownPos;
+
+        Vector3 intoField = (opposingGoal.GetGoalPosition() - ownPos).normalized;
+        return ownPos + intoField * botData.defendRadius;
     }
 
     private void ExecuteIntercept()
@@ -585,7 +587,7 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
         if (!_isHoldingDisc || !disc) return;
         if (!opposingGoal) return;
 
-        Vector3 goalTarget = opposingGoal.transform.position;
+        Vector3 goalTarget = opposingGoal.GetGoalPosition();
         ThrowDiscAt(goalTarget);
 
         Debug.Log($"[BotAIController] {gameObject.name} shot at goal!");
@@ -634,7 +636,7 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
         if (!opposingGoal) return false;
         if (!opposingGoal.IsGoalActive()) return false;
 
-        float distToGoal = Vector3.Distance(transform.position, opposingGoal.transform.position);
+        float distToGoal = Vector3.Distance(transform.position, opposingGoal.GetGoalPosition());
         return distToGoal <= botData.shootRange;
     }
 
@@ -745,7 +747,8 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
         if (!disc) return transform.position;
         if (!opposingGoal) return disc.transform.position;
 
-        Vector3 towardGoal = (opposingGoal.transform.position - disc.transform.position).normalized;
+        Vector3 goalPos = opposingGoal.GetGoalPosition();
+        Vector3 towardGoal = (goalPos - disc.transform.position).normalized;
         Vector3 lateralOffset = Vector3.Cross(towardGoal, Vector3.up) * 4f;
 
         return disc.transform.position + towardGoal * 5f + lateralOffset;
