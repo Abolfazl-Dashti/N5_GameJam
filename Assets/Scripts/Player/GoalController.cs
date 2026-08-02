@@ -1,8 +1,7 @@
-// Attach to: Each goal GameObject (one for TeamA's goal, one for TeamB's goal).
-// Requires: A child GameObject with a Trigger Collider (the goal mouth opening).
 using UnityEngine;
 using UnityEngine.Events;
 
+// Must be attached to Each goal GameObjects of TeamA & TeamB
 public class GoalController : MonoBehaviour, IGoalActivating
 {
     [Header("Data")]
@@ -28,16 +27,16 @@ public class GoalController : MonoBehaviour, IGoalActivating
     [SerializeField] private Collider goalTriggerCollider;
 
     [Header("Events")]
-    [Tooltip("Fires when this goal becomes active (ready to receive shots).")]
+    [Tooltip("what happen when this goal becomes active & ready to receive the disc")]
     public UnityEvent onGoalActivated;
 
-    [Tooltip("Fires when this goal becomes inactive.")]
+    [Tooltip("what happen when this goal becomes inactive")]
     public UnityEvent onGoalDeactivated;
 
-    [Tooltip("Fires when a valid goal is scored. Passes the scoring team and points.")]
+    [Tooltip("Run when a valid goal is scored")]
     public UnityEvent<TeamType, int> onGoalScored;
 
-    [Tooltip("Fires when the post-goal pause ends and the match resets.")]
+    // don't need any attachment in Inspector(handle with MatchManager.cs)
     public UnityEvent onPostGoalReset;
     
     private bool _isActive;
@@ -91,6 +90,21 @@ public class GoalController : MonoBehaviour, IGoalActivating
         // Retrieve current multiplier from PossessionManager
         int currentMultiplier = possessionManager ? possessionManager.CurrentPassMultiplier : 1;
         ProcessGoal(scoringTeam, currentMultiplier);
+    }
+    
+    // --------- For Goal Finding Bug in prototype(not stadium yet) ---------
+    // Returns the goal's real-world scoring position. The GoalController's own
+    // transform sits at the prefab/parent origin and does NOT reflect the goal's
+    // actual placement in the arena — the goalTriggerCollider child does, since
+    // it's the object that was actually moved into position for gameplay.
+    // AI and gameplay code MUST use this instead of transform.position.
+    public Vector3 GetGoalPosition()
+    {
+        if (goalTriggerCollider) return goalTriggerCollider.transform.position;
+
+        Debug.LogWarning($"[GoalController] {gameObject.name} — goalTriggerCollider not assigned, " +
+                         "falling back to parent transform.position (likely incorrect).");
+        return transform.position;
     }
 
     /// <summary>

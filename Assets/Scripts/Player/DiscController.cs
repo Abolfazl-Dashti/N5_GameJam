@@ -1,13 +1,14 @@
-using System;
+using System.Collections;
 using UnityEngine;
 using UnityEngine.Events;
 
 public class DiscController : MonoBehaviour
 {
-    // ScriptableObjects References
     [SerializeField] private DiscData discData;
-    
-    // Parameters
+
+    [Header("Catch Assist")]
+    [SerializeField] private float catchPullDuration = 0.08f;
+
     private Rigidbody _rb;
     public DiscState currentState = DiscState.Free;
     private Transform _currentHolder;
@@ -17,25 +18,21 @@ public class DiscController : MonoBehaviour
     private int _ceilingLayer;
     private Collider _collider;
 
+    private Coroutine _pullRoutine;
+    private bool _isBeingPulled;
+
     public enum DiscState
     {
-        Free,  // no owner
-        Held,  // owned by a player
-        Passed  // when thrown and flying
+        Free,
+        Held,
+        Passed
     }
 
-    [Tooltip("Fires when disc becomes Free (no owner). Passes last owner Transform (can be null).")]
     public UnityEvent<Transform> onDiscReleased;
-    
-    [Tooltip("Fires when disc is picked up / held. Passes the holder's Transform.")]
     public UnityEvent<Transform> onDiscHeld;
-    
-    [Tooltip("Fires when disc is thrown/passed. Passes the thrower's Transform.")]
     public UnityEvent<Transform> onDiscPassed;
-    
-    [Tooltip("Fires on any arena surface rebound. Passes the new velocity after boost.")]
     public UnityEvent<Vector3> onDiscRebounded;
-    
+
     private void Awake()
     {
         _rb = GetComponent<Rigidbody>();
@@ -46,8 +43,6 @@ public class DiscController : MonoBehaviour
 
     private void FixedUpdate()
     {
-        // Track velocity every physics tick so OnCollisionEnter
-        // has access to the pre-collision velocity accurately
         if (currentState != DiscState.Held)
         {
             _velocityBeforeCollision = _rb.linearVelocity;
@@ -60,6 +55,8 @@ public class DiscController : MonoBehaviour
     private void LateUpdate()
     {
         if (currentState != DiscState.Held || !_currentHolder) return;
+        if (_isBeingPulled) return;
+
         transform.position = _currentHolder.TransformPoint(discData.holdOffset);
         transform.rotation = _currentHolder.rotation;
     }
@@ -70,11 +67,9 @@ public class DiscController : MonoBehaviour
         Vector3 customGravity = Physics.gravity * discData.gravityScale;
         _rb.AddForce(customGravity, ForceMode.Acceleration);
     }
-    
-    // Collision & Rebound Logic
+
     private void OnCollisionEnter(Collision collision)
     {
-        // Only process rebounds when disc is Free or Passed
         if (currentState == DiscState.Held) return;
 
         int hitLayer = collision.gameObject.layer;
@@ -82,14 +77,19 @@ public class DiscController : MonoBehaviour
         bool hitFloor = hitLayer == _floorLayer;
         bool hitCeiling = hitLayer == _ceilingLayer;
 
-        // Only apply our custom rebound to tagged arena surfaces
-        if (!hitWall && !hitFloor && !hitCeiling) return;
-        
-        // Grab the first contact normal — most reliable single-contact surface read
+        if (!hitWall && !hitFloor && !hitCeiling)
+        {
+            IDiscInteractor interactor = collision.gameObject.GetComponent<IDiscInteractor>();
+            if (interactor != null)
+            {
+                _rb.linearVelocity = _velocityBeforeCollision;
+            }
+            return;
+        }
+
         Vector3 surfaceNormal = collision.contacts[0].normal;
         Vector3 reflectedDirection = Vector3.Reflect(_velocityBeforeCollision.normalized, surfaceNormal);
 
-        // Choose the correct boost multiplier based on which surface was hit
         float boostMultiplier = 1f;
 
         if (hitWall)
@@ -105,44 +105,82 @@ public class DiscController : MonoBehaviour
             boostMultiplier = discData.ceilingReboundBoostMultiplier;
         }
 
-        // New speed = previous speed * boost, clamped to maxSpeed
         float previousSpeed = _velocityBeforeCollision.magnitude;
         float boostedSpeed = Mathf.Min(previousSpeed * boostMultiplier, discData.maxSpeed);
 
-        // Apply the new clean velocity — overrides whatever the physics solver did
         Vector3 newVelocity = reflectedDirection * boostedSpeed;
         _rb.linearVelocity = newVelocity;
 
-        // Broadcast rebound event so VFX, SFX, and AI can react
         onDiscRebounded.Invoke(newVelocity);
     }
-    
-    public void SetHeld(Transform holder)
-    {
-        if (!holder)
-        {
-            Debug.LogWarning("[DiscController] SetHeld called with null holder.");
-            return;
-        }
 
+    public void RequestCatch(Transform holder)
+    {
+        if (!holder) return;
+        if (currentState == DiscState.Held) return;
+
+        CancelPullRoutine();
+        _pullRoutine = StartCoroutine(PullAndHoldRoutine(holder));
+    }
+
+    private IEnumerator PullAndHoldRoutine(Transform holder)
+    {
+        _isBeingPulled = true;
         currentState = DiscState.Held;
         _currentHolder = holder;
 
-        // Make kinematic so physics doesn't fight the hand position
+        // اصلاح ۱: فرستادن بلافاصله‌ی ایونت بدون تأخیر فریم برای هوش مصنوعی
+        onDiscHeld.Invoke(holder);
+
+        if (!_rb.isKinematic)
+        {
+            _rb.linearVelocity = Vector3.zero;
+            _rb.angularVelocity = Vector3.zero;
+        }
+
         _rb.isKinematic = true;
-        _rb.linearVelocity = Vector3.zero;
-        _rb.angularVelocity = Vector3.zero;
-        
         if (_collider) _collider.isTrigger = true;
 
-        // Parent to the holder so it moves with them automatically
         transform.SetParent(null, true);
-        transform.position = holder.TransformPoint(discData.holdOffset);
-        transform.rotation = holder.rotation;
 
-        onDiscHeld.Invoke(holder);
+        Vector3 startPosition = transform.position;
+        Quaternion startRotation = transform.rotation;
+        float elapsed = 0f;
+
+        while (elapsed < catchPullDuration)
+        {
+            if (!holder) yield break;
+
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / catchPullDuration);
+
+            Vector3 targetPosition = holder.TransformPoint(discData.holdOffset);
+            transform.position = Vector3.Lerp(startPosition, targetPosition, t);
+            transform.rotation = Quaternion.Slerp(startRotation, holder.rotation, t);
+
+            yield return null;
+        }
+
+        if (holder)
+        {
+            transform.position = holder.TransformPoint(discData.holdOffset);
+            transform.rotation = holder.rotation;
+        }
+
+        _isBeingPulled = false;
+        _pullRoutine = null;
     }
-    
+
+    private void CancelPullRoutine()
+    {
+        if (_pullRoutine != null)
+        {
+            StopCoroutine(_pullRoutine);
+            _pullRoutine = null;
+        }
+        _isBeingPulled = false;
+    }
+
     public void SetPassed(Vector3 direction, float speedOverride = -1f)
     {
         if (currentState != DiscState.Held)
@@ -152,31 +190,49 @@ public class DiscController : MonoBehaviour
         }
 
         Transform thrower = _currentHolder;
+        Collider throwerCollider = thrower ? thrower.GetComponent<Collider>() : null;
 
-        // Detach from holder before re-enabling physics
+        CancelPullRoutine();
+
         transform.SetParent(null, true);
 
         currentState = DiscState.Passed;
         _currentHolder = null;
-        
-        if (_collider) _collider.isTrigger = false;   // collide with walls again
+
+        if (_collider) _collider.isTrigger = false;
         _rb.isKinematic = false;
-        
+
+        // اصلاح ۲: نادیده گرفتن موقت برخورد با پرتاب‌کننده برای جلوگیری از گیر کردن دیسک
+        if (_collider && throwerCollider)
+        {
+            StartCoroutine(IgnoreCollisionTemporarily(_collider, throwerCollider, 0.25f));
+        }
+
         float throwSpeed = speedOverride > 0f ? speedOverride : discData.throwSpeed;
         Vector3 throwVelocity = direction.normalized * throwSpeed;
         _rb.linearVelocity = throwVelocity;
-        
-        // Add spin torque for visual feedback — disc should rotate on its axis
+
         Vector3 spinAxis = Vector3.Cross(direction.normalized, Vector3.up);
         _rb.AddTorque(spinAxis * discData.spinTorque, ForceMode.Impulse);
-        
-        // Seed velocity tracker immediately so first collision has accurate data
+
         _velocityBeforeCollision = throwVelocity;
         onDiscPassed.Invoke(thrower);
     }
-    
+
+    private IEnumerator IgnoreCollisionTemporarily(Collider discCol, Collider throwerCol, float duration)
+    {
+        Physics.IgnoreCollision(discCol, throwerCol, true);
+        yield return new WaitForSeconds(duration);
+        if (discCol && throwerCol)
+        {
+            Physics.IgnoreCollision(discCol, throwerCol, false);
+        }
+    }
+
     public void SetFree(Vector3 releaseVelocity = default)
     {
+        CancelPullRoutine();
+
         Transform lastHolder = _currentHolder;
 
         transform.SetParent(null, true);
@@ -191,7 +247,7 @@ public class DiscController : MonoBehaviour
         _velocityBeforeCollision = releaseVelocity;
         onDiscReleased.Invoke(lastHolder);
     }
-    
+
     public void Redirect(Vector3 redirectDirection, float speedRetention = 0.9f)
     {
         if (currentState == DiscState.Held)
@@ -214,7 +270,7 @@ public class DiscController : MonoBehaviour
 
         onDiscReleased.Invoke(null);
     }
-    
+
     private void EnforceSpeedLimits()
     {
         if (currentState == DiscState.Held) return;
@@ -230,25 +286,14 @@ public class DiscController : MonoBehaviour
             _rb.linearVelocity = _rb.linearVelocity.normalized * discData.minFreeSpeed;
         }
     }
-    
-    private void FollowHolderIfHeld()
-    {
-        if (currentState != DiscState.Held || !_currentHolder)
-        {
-            return;
-        }
 
-        // Confirm local position hasn't drifted
-        transform.localPosition = discData.holdOffset;
-    }
-    
     private void CacheLayerIntegers()
     {
         _wallLayer = LayerMask.NameToLayer(discData.wallLayerName);
         _floorLayer = LayerMask.NameToLayer(discData.floorLayerName);
         _ceilingLayer = LayerMask.NameToLayer(discData.ceilingLayerName);
     }
-    
+
     private void ValidateRigidbodySettings()
     {
         _rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
@@ -265,6 +310,8 @@ public class DiscController : MonoBehaviour
             Debug.LogWarning("[DiscController] ForceRelease called but disc is not Held.");
             return;
         }
+
+        CancelPullRoutine();
 
         transform.SetParent(null, true);
         currentState = DiscState.Free;
