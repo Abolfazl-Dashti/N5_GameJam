@@ -23,18 +23,16 @@ MonoBehaviour:
   aimInaccuracy: 0.2
   passSearchRadius: 50
   holdDecisionTime: 0.9
+  forcedReleaseTimeout: 2
   defendRadius: 8
   interceptTriggerRange: 5
   dashTriggerRange: 3
   dashCooldown: 2
   stateEvaluationInterval: 0.4
-  navMeshSampleDistance: 10
   floorLayerMask:
     serializedVersion: 2
     m_Bits: 256
-  floorProjectionRayLength: 50
+  arenaCeilingHeight: 100
   navMeshSnapTolerance: 2
   navMeshFallbackSampleDistance: 10
   chaseLeadTime: 0.3
-  arenaCeilingHeight: 100
-  forcedReleaseTimeout: 2

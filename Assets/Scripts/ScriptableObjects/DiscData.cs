@@ -4,38 +4,33 @@ using UnityEngine;
 public class DiscData : ScriptableObject
 {
     [Header("Speed Settings")]
-    [Tooltip("Speed when the disc is thrown or passed")]
-    public float throwSpeed = 20f;
-
-    [Tooltip("Absolute maximum speed the disc is ever allowed to reach.")]
-    public float maxSpeed = 40f;
-
-    [Tooltip("Minimum speed the disc must have when free(not thrown or passed)")]
-    public float minFreeSpeed = 5f;
+    public float throwSpeed = 20f;  // سرعت اولیه دیسک هنگام پرتاب یا پاس
+    public float maxSpeed = 40f;  // نهایت سرعتی که دیسک حتی با شتاب گرفتن بر اثر برخورد با دیواره های آرنا میتونه بگیره
+    public float spinTorque = 15f;  // میزان چرخش دیسک وقتی پرتاب میشه یا پاس داده میشه
+    [Tooltip("Minimum speed of disc when free(not thrown or passed)")] 
+    public float minFreeSpeed = 5f;  // حداقل سرعت دیسک وقتی آزاد است تا کند یا متوقف نشود
 
     [Header("Rebound Settings")]
-    [Range(1.0f, 1.5f)] public float wallReboundBoostMultiplier = 1.12f;
-    [Range(1.0f, 1.5f)] public float floorReboundBoostMultiplier = 1.06f;
-    [Range(1.0f, 1.5f)] public float ceilingReboundBoostMultiplier = 1.10f;
-
-    [Tooltip("angular spin for disc when thrown or passed")]
-    public float spinTorque = 15f;
-
+    [Range(1.0f, 1.5f)] public float wallReboundBoostMultiplier;  // ضریب افزایش سرعت پس از برخورد با دیوارها
+    [Range(1.0f, 1.5f)] public float floorReboundBoostMultiplier;  // ضریب افزایش سرعت پس از برخورد با کف
+    [Range(1.0f, 1.5f)] public float ceilingReboundBoostMultiplier;  // ضریب افزایش سرعت پس از برخورد با سقف
+    
     [Header("Drag & Gravity")]
-    public float freeDrag = 0.05f;
-    public float gravityScale = 0.4f;
-
-    [Header("Hold Offset")]
-    [Tooltip("Local offset from the holder's camera/hand position where the disc sits.")]
+    public float freeDrag = 0.05f;  // مقاومت هوا وقتی دیسک آزاد است
+    public float gravityScale = 0.4f;  // ضریب جاذبه سفارشی برای رفتار پرتابی دیسک (کمتر از جاذبه واقعی پیشفرض Unity)
+    
+    [Header("Disc Position on player")]
+    // وقتی پلیر دیسک رو میگیره در موقعیت زیر نسبت به بدنش دیسک رو نگه میداره
     public Vector3 holdOffset = new Vector3(0f, -0.2f, 0.8f);
-
+    
+    // نام لایه هایی که باید در Inspector به دیوار، کف و سقف آرنا اختصاص داده شود. نام وارد شده باید با نام لایه یکی باشد
     [Header("Layer & Tag Names")]
-    [Tooltip("Physics Layer name assigned to arena walls.")]
+    [Tooltip("Physics Layer name assigned to arena walls")]
     public string wallLayerName = "ArenaWall";
 
-    [Tooltip("Physics Layer name assigned to the arena floor.")]
+    [Tooltip("Physics Layer name assigned to the arena floor")]
     public string floorLayerName = "ArenaFloor";
 
-    [Tooltip("Physics Layer name assigned to the arena ceiling.")]
+    [Tooltip("Physics Layer name assigned to the arena ceil")]
     public string ceilingLayerName = "ArenaCeiling";
 }
