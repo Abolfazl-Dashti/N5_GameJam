@@ -12,9 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 08c16bab02138404b9d77e630a113913, type: 3}
   m_Name: DiscHandler
   m_EditorClassIdentifier: Assembly-CSharp::DiscHandlerData
-  catchRadius: 2
-  catchCastRange: 12
-  catchCastRadius: 10
+  catchRadius: 2.02
+  catchCastRange: 71.1
   discLayerMask:
     serializedVersion: 2
     m_Bits: 8
