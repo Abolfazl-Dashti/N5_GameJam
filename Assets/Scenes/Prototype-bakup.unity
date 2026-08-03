@@ -2714,6 +2714,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 192.711
       objectReference: {fileID: 0}
+    - target: {fileID: 4214014588149597463, guid: 73c49d4a59319634ea2c6b172af471aa, type: 3}
+      propertyPath: m_Enabled
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 5917398910126275146, guid: 73c49d4a59319634ea2c6b172af471aa, type: 3}
       propertyPath: m_Name
       value: Disc
