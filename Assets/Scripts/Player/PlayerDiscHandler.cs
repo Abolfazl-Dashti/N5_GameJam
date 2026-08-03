@@ -152,15 +152,10 @@ public class PlayerDiscHandler : MonoBehaviour, IDiscInteractor
 
         AttemptRedirect();
     }
-
-    // -------------------------------------------------------------------------
+    
     // CATCH LOGIC
-    // -------------------------------------------------------------------------
-
-    /// <summary>
-    /// Passive auto-catch — triggers when standing close to a free/passed disc.
-    /// No look-direction requirement at all.
-    /// </summary>
+    // Passive auto-catch — triggers when standing close to a free/passed disc
+    // No look-direction requirement at all
     private void AttemptProximityCatch()
     {
         if (!disc) return;
@@ -174,13 +169,11 @@ public class PlayerDiscHandler : MonoBehaviour, IDiscInteractor
             CatchDisc(disc);
         }
     }
-
-    /// <summary>
-    /// 'E' key directed catch. Uses Physics.OverlapSphere for robust detection instead
-    /// of relying purely on a single assigned reference + raw transform distance.
-    /// Close range = no angle requirement at all (fixes "clunky catch" feel).
-    /// Extended range = generous camera-orientation cone as a secondary allowance.
-    /// </summary>
+    
+    // 'E' key directed catch. Uses Physics.OverlapSphere for robust detection instead
+    // of relying purely on a single assigned reference + raw transform distance
+    // Close range = no angle requirement at all (fixes "clunky catch" feel)
+    // Extended range = generous camera-orientation cone as a secondary allowance
     private void AttemptDirectedCatch()
     {
         DiscController foundDisc = FindNearestCatchableDisc(discHandlerData.catchCastRange);
@@ -206,11 +199,9 @@ public class PlayerDiscHandler : MonoBehaviour, IDiscInteractor
             CatchDisc(foundDisc);
         }
     }
-
-    /// <summary>
-    /// Finds the nearest catchable (Free or Passed) disc within range using an
-    /// OverlapSphere against the dedicated disc layer mask.
-    /// </summary>
+    
+    // Finds the nearest catchable (Free or Passed) disc within range using an
+    // OverlapSphere against the dedicated disc layer mask
     private DiscController FindNearestCatchableDisc(float range)
     {
         int hitCount = Physics.OverlapSphereNonAlloc(
@@ -249,14 +240,12 @@ public class PlayerDiscHandler : MonoBehaviour, IDiscInteractor
         _currentChargeTime = 0f;
         _catchAttemptBuffer = CatchBufferDuration;
 
-        // Smooth magnetic-pull catch for better game feel.
+        // Smooth magnetic-pull catch for better game feel
         disc.RequestCatch(transform);
         onPlayerCaught.Invoke();
     }
-
-    // -------------------------------------------------------------------------
+    
     // THROW LOGIC
-    // -------------------------------------------------------------------------
     private void TickThrowCharge()
     {
         _currentChargeTime += Time.deltaTime;
@@ -300,9 +289,7 @@ public class PlayerDiscHandler : MonoBehaviour, IDiscInteractor
         return loftedDirection.normalized;
     }
 
-    // -------------------------------------------------------------------------
     // REDIRECT LOGIC
-    // -------------------------------------------------------------------------
     private void AttemptRedirect()
     {
         if (!disc) return;

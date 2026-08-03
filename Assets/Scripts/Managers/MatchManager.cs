@@ -5,15 +5,12 @@ public class MatchManager : MonoBehaviour
 {
     public enum MatchState
     {
-        WaitingToStart,   // Pre-match countdown / menu
-        InProgress,       // Active play — timer running
-        PostGoal,         // Goal scored — timer paused, respawn pending
-        MatchOver         // Timer hit zero or external end condition
+        WaitingToStart,  // Pre-match countdown / menu
+        InProgress,  // Active play — timer running
+        PostGoal,  // Goal scored — timer paused, respawn pending
+        MatchOver  // Timer hit zero or external end condition
     }
 
-    // -------------------------------------------------------------------------
-    // INSPECTOR REFERENCES
-    // -------------------------------------------------------------------------
     [Header("Data")]
     [SerializeField] private MatchData matchData;
 
@@ -56,21 +53,18 @@ public class MatchManager : MonoBehaviour
              "(TeamType.None = draw).")]
     public UnityEvent<TeamType> onMatchOver;
 
-    // -------------------------------------------------------------------------
-    // PRIVATE STATE
-    // -------------------------------------------------------------------------
     private MatchState _currentState = MatchState.WaitingToStart;
 
     // Match timer
-    private float _matchTimeRemaining = 0f;
-    private float _timerTickAccumulator = 0f;
+    private float _matchTimeRemaining;
+    private float _timerTickAccumulator;
 
     // Post-goal
-    private float _postGoalTimer = 0f;
-    private bool _centerSpawnFreezeActive = false;
-    private float _centerSpawnFreezeTimer = 0f;
+    private float _postGoalTimer;
+    private bool _centerSpawnFreezeActive;
+    private float _centerSpawnFreezeTimer;
 
-    // Cached IResettable references — resolved once on Awake
+    // Cached IResettable references, resolved once on Awake
     private IResettable _playerResettable;
     private IResettable _teamABotResettable;
     private IResettable _teamBBot1Resettable;
@@ -79,15 +73,10 @@ public class MatchManager : MonoBehaviour
     // Cached Rigidbody of the disc for respawn
     private Rigidbody _discRigidbody;
 
-    // -------------------------------------------------------------------------
-    // PUBLIC READ-ONLY ACCESSORS
-    // -------------------------------------------------------------------------
-    public MatchState CurrentState { get { return _currentState; } }
-    public float MatchTimeRemaining { get { return _matchTimeRemaining; } }
+    // Property
+    public MatchState CurrentState => _currentState;
+    public float MatchTimeRemaining => _matchTimeRemaining;
 
-    // -------------------------------------------------------------------------
-    // UNITY LIFECYCLE
-    // -------------------------------------------------------------------------
     private void Awake()
     {
         ValidateReferences();
@@ -132,16 +121,14 @@ public class MatchManager : MonoBehaviour
         }
     }
 
-    // -------------------------------------------------------------------------
     // EVENT SUBSCRIPTIONS
-    // -------------------------------------------------------------------------
     private void SubscribeToGoalEvents()
     {
         if (goalControllers == null) return;
 
         for (int i = 0; i < goalControllers.Length; i++)
         {
-            if (goalControllers[i] != null)
+            if (goalControllers[i])
             {
                 goalControllers[i].onGoalScored.AddListener(OnGoalScored);
             }
@@ -154,7 +141,7 @@ public class MatchManager : MonoBehaviour
 
         for (int i = 0; i < goalControllers.Length; i++)
         {
-            if (goalControllers[i] != null)
+            if (goalControllers[i])
             {
                 goalControllers[i].onGoalScored.RemoveListener(OnGoalScored);
             }
@@ -163,7 +150,7 @@ public class MatchManager : MonoBehaviour
 
     private void SubscribeToScoreEvents()
     {
-        if (scoreManager != null)
+        if (scoreManager)
         {
             scoreManager.onGoalScored.AddListener(OnScoreManagerGoalScored);
         }
@@ -171,20 +158,15 @@ public class MatchManager : MonoBehaviour
 
     private void UnsubscribeFromScoreEvents()
     {
-        if (scoreManager != null)
+        if (scoreManager)
         {
             scoreManager.onGoalScored.RemoveListener(OnScoreManagerGoalScored);
         }
     }
 
-    // -------------------------------------------------------------------------
     // GOAL EVENT HANDLERS
-    // -------------------------------------------------------------------------
-
-    /// <summary>
-    /// Called by GoalController.onGoalScored when a valid goal is detected.
-    /// Pauses the match timer and begins the post-goal sequence.
-    /// </summary>
+    // Called by GoalController.onGoalScored when a valid goal is detected.
+    // Pauses the match timer and begins the post-goal sequence.
     private void OnGoalScored(TeamType scoringTeam, int pointsAwarded)
     {
         if (_currentState != MatchState.InProgress) return;
@@ -194,24 +176,17 @@ public class MatchManager : MonoBehaviour
 
         BeginPostGoalPause(scoringTeam, pointsAwarded);
     }
-
-    /// <summary>
-    /// Called by ScoreManager.onGoalScored — secondary listener for logging/UI.
-    /// Main logic runs in OnGoalScored above.
-    /// </summary>
+    
+    // Called by ScoreManager.onGoalScored — secondary listener for logging/UI.
+    // Main logic runs in OnGoalScored above.
     private void OnScoreManagerGoalScored(TeamType scoringTeam, int pointsAwarded)
     {
-        // Additional reactions to a scored goal can go here (e.g., music sting)
+        // Additional reactions to a scored goal can go here (e.g., music)
     }
 
-    // -------------------------------------------------------------------------
     // MATCH STATE TRANSITIONS
-    // -------------------------------------------------------------------------
-
-    /// <summary>
-    /// Starts the match from WaitingToStart state.
-    /// Resets timer, repositions everyone, fires start event.
-    /// </summary>
+    // Starts the match from WaitingToStart state
+    // Resets timer, repositions everyone, fires start event
     public void StartMatch()
     {
         if (_currentState != MatchState.WaitingToStart)
@@ -238,10 +213,8 @@ public class MatchManager : MonoBehaviour
 
         Debug.Log("[MatchManager] Match started! Timer running.");
     }
-
-    /// <summary>
-    /// Pauses the 8-minute timer and begins the post-goal pause sequence.
-    /// </summary>
+    
+    // Pauses the 8-minute timer and begins the post-goal pause sequence
     private void BeginPostGoalPause(TeamType scoringTeam, int pointsAwarded)
     {
         _currentState = MatchState.PostGoal;
@@ -252,11 +225,9 @@ public class MatchManager : MonoBehaviour
 
         onPostGoalPauseStarted.Invoke(scoringTeam, pointsAwarded);
     }
-
-    /// <summary>
-    /// Called when the post-goal delay finishes.
-    /// Repositions everyone and resumes the match timer.
-    /// </summary>
+    
+    // Called when the post-goal delay finishes
+    // Repositions everyone and resumes the match timer
     private void ResumeAfterGoal()
     {
         // Reset possession and chain
@@ -275,11 +246,9 @@ public class MatchManager : MonoBehaviour
         // Match timer resumes after center freeze ends (in TickCenterSpawnFreeze)
         Debug.Log("[MatchManager] Post-goal reset complete. Center spawn freeze started.");
     }
-
-    /// <summary>
-    /// Called after center spawn freeze ends — unfreezes all players and
-    /// officially transitions back to InProgress.
-    /// </summary>
+    
+    // Called after center spawn freeze ends — unfreezes all players and
+    // officially transitions back to InProgress
     private void ResumeMatch()
     {
         _currentState = MatchState.InProgress;
@@ -291,10 +260,8 @@ public class MatchManager : MonoBehaviour
 
         Debug.Log("[MatchManager] Match resumed. Timer running.");
     }
-
-    /// <summary>
-    /// Called when the 8-minute timer reaches zero.
-    /// </summary>
+    
+    // Called when the 8-minute timer reaches zero
     private void EndMatch()
     {
         _currentState = MatchState.MatchOver;
@@ -311,15 +278,9 @@ public class MatchManager : MonoBehaviour
 
         onMatchOver.Invoke(winner);
     }
-
-    // -------------------------------------------------------------------------
-    // TIMER TICKING
-    // -------------------------------------------------------------------------
-
-    /// <summary>
-    /// Counts down the 8-minute match timer.
-    /// Only runs during InProgress state — automatically paused in PostGoal.
-    /// </summary>
+    
+    // Counts down the 8-minute match timer
+    // Only runs during InProgress state — automatically paused in PostGoal
     private void TickMatchTimer()
     {
         _matchTimeRemaining -= Time.deltaTime;
@@ -338,11 +299,9 @@ public class MatchManager : MonoBehaviour
             EndMatch();
         }
     }
-
-    /// <summary>
-    /// Counts down the post-goal pause.
-    /// Timer is NOT running during this state — it resumes after.
-    /// </summary>
+    
+    // Counts down the post-goal pause
+    // Timer is NOT running during this state — it resumes after
     private void TickPostGoalPause()
     {
         _postGoalTimer += Time.deltaTime;
@@ -359,11 +318,9 @@ public class MatchManager : MonoBehaviour
             TickCenterSpawnFreeze();
         }
     }
-
-    /// <summary>
-    /// Short freeze window after center spawn before match resumes.
-    /// Gives players a moment to orient before the disc is live.
-    /// </summary>
+    
+    // Short freeze window after center spawn before match resumes
+    // Gives players a moment to orient before the disc is live
     private void TickCenterSpawnFreeze()
     {
         _centerSpawnFreezeTimer += Time.deltaTime;
@@ -374,19 +331,13 @@ public class MatchManager : MonoBehaviour
             ResumeMatch();
         }
     }
-
-    // -------------------------------------------------------------------------
-    // CENTER SPAWN
-    // -------------------------------------------------------------------------
-
-    /// <summary>
-    /// Teleports all characters and the disc to center spawn positions.
-    /// Calls IResettable.ResetToSpawn on each character.
-    /// </summary>
+    
+    // Teleports all characters and the disc to center spawn positions
+    // Calls IResettable.ResetToSpawn on each character
     private void ExecuteCenterSpawn()
     {
         Quaternion spawnRotation = Quaternion.Euler(0f, matchData.spawnFacingYRotation, 0f);
-
+        
         // Reset all characters
         ResetCharacter(_playerResettable, matchData.playerSpawnPosition, spawnRotation);
         ResetCharacter(_teamABotResettable, matchData.teamABotSpawnPosition, spawnRotation);
@@ -404,10 +355,8 @@ public class MatchManager : MonoBehaviour
         if (resettable == null) return;
         resettable.ResetToSpawn(position, rotation);
     }
-
-    /// <summary>
-    /// Returns the disc to center spawn — fully free with zero velocity.
-    /// </summary>
+    
+    // Returns the disc to center spawn, fully free with zero velocity
     private void ResetDisc()
     {
         if (!disc) return;
@@ -423,7 +372,7 @@ public class MatchManager : MonoBehaviour
         disc.transform.rotation = Quaternion.Euler(matchData.discSpawnRotation);
 
         // Kill all velocity
-        if (_discRigidbody != null)
+        if (_discRigidbody)
         {
             _discRigidbody.linearVelocity = Vector3.zero;
             _discRigidbody.angularVelocity = Vector3.zero;
@@ -435,9 +384,7 @@ public class MatchManager : MonoBehaviour
         Debug.Log($"[MatchManager] Disc reset to {matchData.discSpawnPosition}.");
     }
 
-    // -------------------------------------------------------------------------
-    // FREEZE / UNFREEZE ALL CHARACTERS
-    // -------------------------------------------------------------------------
+    // Freeze and UnFreeze Characters
     private void FreezeAllCharacters()
     {
         FreezeCharacter(_playerResettable);
@@ -465,14 +412,8 @@ public class MatchManager : MonoBehaviour
         if (resettable == null) return;
         resettable.UnfreezePlayer();
     }
-
-    // -------------------------------------------------------------------------
-    // PUBLIC API
-    // -------------------------------------------------------------------------
-
-    /// <summary>
-    /// Returns remaining time as a formatted MM:SS string for UI display.
-    /// </summary>
+    
+    // Returns remaining time as a formatted MM:SS string for UI display
     public string GetMatchTimeDisplayString()
     {
         float time = Mathf.Max(0f, _matchTimeRemaining);
@@ -480,19 +421,14 @@ public class MatchManager : MonoBehaviour
         int seconds = Mathf.FloorToInt(time % 60f);
         return string.Format("{0:00}:{1:00}", minutes, seconds);
     }
-
-    /// <summary>
-    /// Force-ends the match early. Useful for debug or external triggers.
-    /// </summary>
+    
+    // Force-ends the match early. Useful for debug(not used yet)
     public void ForceEndMatch()
     {
         if (_currentState == MatchState.MatchOver) return;
         EndMatch();
     }
-
-    // -------------------------------------------------------------------------
-    // CACHE & VALIDATION
-    // -------------------------------------------------------------------------
+    
     private void CacheResettables()
     {
         _playerResettable = CacheResettable(playerObject, "Player");
@@ -503,7 +439,7 @@ public class MatchManager : MonoBehaviour
 
     private IResettable CacheResettable(GameObject obj, string label)
     {
-        if (obj == null)
+        if (!obj)
         {
             Debug.LogWarning($"[MatchManager] {label} GameObject is not assigned.");
             return null;
@@ -522,7 +458,7 @@ public class MatchManager : MonoBehaviour
 
     private void CacheDiscRigidbody()
     {
-        if (disc != null)
+        if (disc)
         {
             _discRigidbody = disc.GetComponent<Rigidbody>();
         }
@@ -543,9 +479,6 @@ public class MatchManager : MonoBehaviour
                              "goal events won't trigger post-goal pause.");
     }
 
-    // -------------------------------------------------------------------------
-    // DEBUG GUI
-    // -------------------------------------------------------------------------
     private void OnGUI()
     {
         if (!Application.isPlaying) return;
@@ -553,12 +486,12 @@ public class MatchManager : MonoBehaviour
         GUILayout.BeginArea(new Rect(10, 150, 280, 100));
         GUILayout.BeginVertical("box");
 
-        GUILayout.Label($"Match State:   {_currentState}");
-        GUILayout.Label($"Match Time:    {GetMatchTimeDisplayString()}");
+        GUILayout.Label($"Match State: {_currentState}");
+        GUILayout.Label($"Match Time: {GetMatchTimeDisplayString()}");
 
         if (_currentState == MatchState.PostGoal)
         {
-            GUILayout.Label($"Post-Goal:     {(_postGoalTimer).ToString("F1")}s " +
+            GUILayout.Label($"Post-Goal: {(_postGoalTimer).ToString("F1")}s " +
                             $"/ {matchData.postGoalRespawnDelay}s");
         }
 

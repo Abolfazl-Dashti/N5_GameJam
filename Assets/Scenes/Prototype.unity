@@ -1938,7 +1938,7 @@ GameObject:
   - component: {fileID: 1167769089}
   - component: {fileID: 1167769091}
   - component: {fileID: 1167769090}
-  m_Layer: 10
+  m_Layer: 6
   m_Name: Bot1_PlayerTeammate
   m_TagString: TeamA
   m_Icon: {fileID: 0}

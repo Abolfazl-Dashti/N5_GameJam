@@ -56,12 +56,10 @@ public class GoalController : MonoBehaviour, IGoalActivating
             TickPostGoalTimer();
         }
     }
-
-    /// <summary>
-    /// Called by Unity when the disc enters the goal trigger volume.
-    /// OnTriggerEnter works because the disc's collider becomes a trigger
-    /// while held — but we only care about it when it is NOT held (Free or Passed).
-    /// </summary>
+    
+    // Called by Unity when the disc enters the goal trigger volume
+    // OnTriggerEnter works because the disc's collider becomes a trigger
+    // while held — but we only care about it when it is NOT held (Free or Passed)
     private void OnTriggerEnter(Collider other)
     {
         // Ignore if already processing a goal this frame
@@ -96,8 +94,8 @@ public class GoalController : MonoBehaviour, IGoalActivating
     // Returns the goal's real-world scoring position. The GoalController's own
     // transform sits at the prefab/parent origin and does NOT reflect the goal's
     // actual placement in the arena — the goalTriggerCollider child does, since
-    // it's the object that was actually moved into position for gameplay.
-    // AI and gameplay code MUST use this instead of transform.position.
+    // it's the object that was actually moved into position for gameplay
+    // AI and gameplay code MUST use this instead of transform.position
     public Vector3 GetGoalPosition()
     {
         if (goalTriggerCollider) return goalTriggerCollider.transform.position;
@@ -106,10 +104,8 @@ public class GoalController : MonoBehaviour, IGoalActivating
                          "falling back to parent transform.position (likely incorrect).");
         return transform.position;
     }
-
-    /// <summary>
-    /// A valid goal has been scored. Award points, notify systems, start pause.
-    /// </summary>
+    
+    // A valid goal has been scored. Award points, notify systems, start pause
     private void ProcessGoal(TeamType scoringTeam, int passMultiplier)
     {
         _isProcessingGoal = true;
@@ -140,8 +136,8 @@ public class GoalController : MonoBehaviour, IGoalActivating
                   $"(x{passMultiplier} multiplier). Post-goal pause started.");
     }
     
-    /// Counts down the post-goal pause (replay window).
-    /// When done, fires reset event so MatchManager can respawn players.
+    // Counts down the post-goal pause (replay window)
+    // When done, fires reset event so MatchManager can respawn players
     private void TickPostGoalTimer()
     {
         _postGoalTimer += Time.deltaTime;
@@ -199,7 +195,7 @@ public class GoalController : MonoBehaviour, IGoalActivating
         return defendingTeam;
     }
     
-    /// The attacking team is whoever is NOT defending this goal.
+    // The attacking team is whoever is NOT defending this goal
     private TeamType GetAttackingTeam()
     {
         if (defendingTeam == TeamType.TeamA) return TeamType.TeamB;
@@ -207,8 +203,8 @@ public class GoalController : MonoBehaviour, IGoalActivating
         return TeamType.None;
     }
     
-    /// Sets the goal renderer's emission color to give visual feedback.
-    /// Works with URP Lit shader — requires _EmissionColor property.
+    // Sets the goal renderer's emission color to give visual feedback
+    // Works with URP Lit shader — requires _EmissionColor property
     private void SetGoalVisual(Color color)
     {
         if (!goalRenderer) return;

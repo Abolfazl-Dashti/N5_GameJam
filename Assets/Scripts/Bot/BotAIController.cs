@@ -176,9 +176,7 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
         }
     }
 
-    // -------------------------------------------------------------------------
     // FSM — STATE EVALUATION
-    // -------------------------------------------------------------------------
     private void EvaluateState()
     {
         if (_isFrozen)
@@ -266,7 +264,7 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
 
     private void ExecuteChaseDisc()
     {
-        // Safety net: never keep chasing the disc if we already have it.
+        // Safety net: never keep chasing the disc if we already have it
         if (_isHoldingDisc)
         {
             EvaluateState();
@@ -504,9 +502,7 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
         return null;
     }
 
-    // -------------------------------------------------------------------------
     // DISC INTERACTION
-    // -------------------------------------------------------------------------
     private void CatchDisc()
     {
         if (_isHoldingDisc) return;
@@ -516,7 +512,7 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
         _isHoldingDisc = true;
         _holdTimer = 0f;
 
-        // Smooth magnetic-pull catch for visual consistency with the player.
+        // Smooth magnetic-pull catch for visual consistency with the player
         disc.RequestCatch(transform);
         onBotCaughtDisc.Invoke();
 
@@ -567,10 +563,10 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
             return;
         }
 
-        // SAFETY NET (fixes the freeze): no valid pass, can't shoot (goal not yet
-        // active), and no enemy pressure detected. Without this, the bot would hold
+        // SAFETY NET (fixes the freeze): no valid pass, can't shoot (goal not yet active),
+        // and no enemy pressure detected. Without this, the bot would hold
         // the disc and do nothing until the 30s attack timer forcibly resets
-        // possession — a visible, game-breaking freeze from the player's perspective.
+        // possession. a visible, game-breaking freeze from the player's perspective
         if (_holdTimer >= botData.forcedReleaseTimeout)
         {
             Vector3 safeTarget = transform.position + transform.forward * 8f;
@@ -593,9 +589,7 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
         Debug.Log($"[BotAIController] {gameObject.name} shot at goal!");
     }
 
-    // -------------------------------------------------------------------------
     // DASH / INTERCEPT
-    // -------------------------------------------------------------------------
     private void AttemptDash(Transform target)
     {
         if (_dashOnCooldown) return;
@@ -626,10 +620,8 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
 
         Debug.Log($"[BotAIController] {gameObject.name} dashed into {target.name} — stagger applied!");
     }
-
-    // -------------------------------------------------------------------------
+    
     // DECISION HELPERS
-    // -------------------------------------------------------------------------
     private bool ShouldShoot()
     {
         if (!_isHoldingDisc) return false;
@@ -723,7 +715,7 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
         // Defensive check: confirm the assigned teammate Transform is actually on
         // OUR team. Catches Inspector mis-wiring (e.g., accidentally dragging an
         // enemy bot into the teammate slot) that would otherwise cause the bot to
-        // "pass" the disc straight to an opponent.
+        // "pass" the disc straight to an opponent
         TeamType teammateTeam = GetTeamFromGameObject(teammate.gameObject);
         if (teammateTeam != Team)
         {
@@ -809,8 +801,7 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
         }
     }
     
-    // NEW: last-resort recovery if the agent is ever detected off the NavMesh.
-    // Prevents a permanent silent freeze.
+    // Prevents a permanent silent freeze
     private void TryRecoverAgentOntoNavMesh()
     {
         float recoverRadius = botData ? botData.navMeshFallbackSampleDistance : 10f;
@@ -827,22 +818,15 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
                            "was found nearby. Check NavMesh coverage near this position.");
         }
     }
-
-    /// <summary>
-    /// Predicts the disc's near-future position and clamps it onto the NavMesh.
-    /// FIXES Bug 1: right after a lofted throw, the disc hangs in the air well above
-    /// the floor (throwLoftAngle + reduced gravityScale). Without clamping, the raw
-    /// predicted target is too far from any walkable surface, NavMeshAgent.SetDestination
-    /// silently fails, and the agent freezes since it has no valid path to move along.
-    /// </summary>
+    
     private Vector3 GetDiscChaseTarget()
     {
         if (!disc) return transform.position;
 
         Vector3 discPosition = disc.transform.position;
 
-        // STEP 1 — Predict horizontal (XZ) lead only. Vertical velocity is irrelevant
-        // here because we project straight down onto the floor regardless of height.
+        // Predict horizontal (XZ) lead only. Vertical velocity is irrelevant.
+        // here because we project straight down onto the floor regardless of height
         Vector3 predictedXZ = discPosition;
         if (_discRigidbody)
         {
@@ -851,7 +835,7 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
             predictedXZ += flatVelocity * botData.chaseLeadTime;
         }
 
-        // STEP 2 — Project straight down onto the floor from the predicted XZ point.
+        // Project straight down onto the floor from the predicted XZ point
         Vector3 floorPoint;
         if (TryProjectOntoFloor(predictedXZ, out floorPoint))
         {
@@ -862,8 +846,8 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
             }
         }
 
-        // STEP 3 — Fallback: floor raycast from the disc's actual current position
-        // (no horizontal prediction), in case the predicted point overshot past a wall/gap.
+        // floor raycast from the disc's actual current position
+        // (no horizontal prediction), in case the predicted point overshot past a wall/gap
         if (TryProjectOntoFloor(discPosition, out floorPoint))
         {
             NavMeshHit navHit;
@@ -873,39 +857,37 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
             }
         }
 
-        // STEP 4 — Fallback: the floor raycast itself found nothing beneath the disc
+        // the floor raycast itself found nothing beneath the disc
         // (e.g., disc is directly over a goal Mouth / out-of-bounds gap with no floor
-        // collider). Widen the search directly around the disc's raw 3D position.
+        // collider). Widen the search directly around the disc's raw 3D position
         NavMeshHit wideHit;
         if (NavMesh.SamplePosition(discPosition, out wideHit, botData.navMeshFallbackSampleDistance, NavMesh.AllAreas))
         {
             return wideHit.position;
         }
 
-        // STEP 5 — Absolute last resort. Only reached if the entire arena floor
+        // Absolute last resort. Only reached if the entire arena floor
         // near the disc is unbaked/unwalkable. Hold current position rather than
-        // sending the agent toward a location NavMesh has no path to.
+        // sending the agent toward a location NavMesh has no path to
         Debug.LogWarning($"[BotAIController] {gameObject.name} could not resolve any valid " +
                       $"NavMesh point near disc position {discPosition}. Holding position.");
         return transform.position;
     }
-
-    /// <summary>
-    /// Casts straight down from well above the given XZ column to find the floor.
-    /// Works regardless of how high the disc currently is (floor-level, mid-throw,
-    /// or bouncing off the ceiling) because raycast length is independent of the
-    /// NavMesh sampling radius problem described above.
-    /// </summary>
+    
+    // Casts straight down from well above the given XZ column to find the floor.
+    // Works regardless of how high the disc currently is (floor-level, mid-throw,
+    // or bouncing off the ceiling) because raycast length is independent of the
+    // NavMesh sampling radius problem described above.
     private bool TryProjectOntoFloor(Vector3 origin, out Vector3 floorPoint)
     {
         floorPoint = origin;
 
         // Fixed origin — always starts above the true ceiling, independent of
-        // where the disc currently is at the moment this is called.
+        // where the disc currently is at the moment this is called
         Vector3 rayStart = new Vector3(origin.x, botData.arenaCeilingHeight + 5f, origin.z);
 
         // Ray must travel the full vertical span: from above the ceiling, past the
-        // ceiling itself, past the disc at any height, all the way down to the floor.
+        // ceiling itself, past the disc at any height, all the way down to the floor
         float rayLength = botData.arenaCeilingHeight + 10f;
 
         RaycastHit hit;
@@ -952,9 +934,7 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
         }
     }
 
-    // -------------------------------------------------------------------------
-    // IDISCINTERACTOR
-    // -------------------------------------------------------------------------
+    // IDISCINTERACTOR Interface
     public Transform GetTransform()
     {
         return transform;
@@ -962,7 +942,6 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
 
     public void OnDiscReceived(DiscController discController)
     {
-        // CHANGED: keep the cached Rigidbody in sync if the disc reference ever changes.
         if (discController && discController != disc)
         {
             disc = discController;
@@ -985,9 +964,7 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
         return _isHoldingDisc;
     }
 
-    // -------------------------------------------------------------------------
-    // ISTAGGERABLE
-    // -------------------------------------------------------------------------
+    // ISTAGGERABLE Interface
     public void ApplyStagger(Vector3 knockbackDirection, float knockbackForce)
     {
         _isStaggered = true;
@@ -1006,8 +983,8 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
             {
                 _agent.Warp(navHit.position);
             }
-            // If no valid point is found nearby, skip the warp entirely — better to
-            // leave the bot in place than knock it fully off the NavMesh.
+            // If no valid point is found nearby, skip the warp entirely, better to
+            // leave the bot in place than knock it fully off the NavMesh
         }
 
         onBotStaggered.Invoke();
@@ -1019,9 +996,7 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
         return _isStaggered;
     }
 
-    // -------------------------------------------------------------------------
-    // IRESETTABLE
-    // -------------------------------------------------------------------------
+    // IRESETTABLE Interface
     public void ResetToSpawn(Vector3 spawnPosition, Quaternion spawnRotation)
     {
         _isHoldingDisc = false;
@@ -1066,9 +1041,7 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
         }
     }
 
-    // -------------------------------------------------------------------------
     // SETUP & VALIDATION
-    // -------------------------------------------------------------------------
     private void ConfigureAgent()
     {
         if (!_agent) return;

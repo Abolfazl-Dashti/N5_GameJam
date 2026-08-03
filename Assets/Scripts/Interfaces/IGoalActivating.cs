@@ -1,6 +1,4 @@
-using UnityEngine;
-
-// Called in 'PossessionManager' Script
+/// Called in 'PossessionManager' and 'GoalController' Script
 public interface IGoalActivating
 {
     // Activate the goal

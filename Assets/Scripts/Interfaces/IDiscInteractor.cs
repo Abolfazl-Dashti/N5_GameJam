@@ -1,16 +1,17 @@
 using UnityEngine;
 
+/// Implement by 'PlayerDiscHandler' and 'BotAIController'
 public interface IDiscInteractor
 {
-    // Transform the player who interacts with the Disc
+    // موقعیت پلیری که دیسک را دارد برمیگرداند
     Transform GetTransform();
 
-    // Called by possession system when someone gains the disc
+    // این متد زمانی صدا زده میشود، وقتی دیسک تحت مالکیت یک بازیکن درمیاد
     void OnDiscReceived(DiscController disc);
 
-    // Called by possession system when someone loses the disc
+    // وقتی دیسک از مالکیت یک بازیکن خارج میشه، این متد صدا زده میشود
     void OnDiscLost();
 
-    // Returns true if someone currently holds the disc
+    // اگر بازیکنی در حال حاضر دیسک را داشته باشد مقدار true برگردانده میشود
     bool IsHoldingDisc();
 }
