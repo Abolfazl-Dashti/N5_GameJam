@@ -113,34 +113,29 @@ public class PossessionManager : MonoBehaviour
         }
 
         TeamType newTeam = GetTeamFromTransform(holder);
+        bool isInterception = IsInterception(newTeam);
+        bool isPass = IsSuccessfulPass(newTeam, holder.gameObject);
 
         _previousHolder = _currentHolder;
         _currentHolder = holder.gameObject;
 
-        bool isInterception = IsInterception(newTeam);
-
         if (isInterception)
         {
             HandleInterception(newTeam);
-            return;
-        }
-
-        // Check if this catch is a successful pass BEFORE updating possession
-        bool isPass = IsSuccessfulPass(newTeam, holder.gameObject);
-
-        if (newTeam != _possessingTeam)
-        {
-            // First pickup, no previous team
-            HandleFreshPossession(newTeam);
         }
         else if (isPass)
         {
-            // Teammate caught a thrown disc. successful pass
             HandleSuccessfulPass(newTeam);
-        }
 
-        // Clear previous holder after resolving the catch type
-        _previousHolder = null;
+            // Update current holder after pass resolved
+            _previousHolder = null;
+        }
+        else if (_possessingTeam == TeamType.None || newTeam != _possessingTeam)
+        {
+            // Fresh pickup from free disc
+            HandleFreshPossession(newTeam);
+            _previousHolder = null;
+        }
     }
     
     private void OnDiscPassed(Transform thrower)

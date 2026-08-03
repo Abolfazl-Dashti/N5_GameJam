@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.Events;
 
-// Manager for both Teams(TeamA, TeamB)
+/// Manager for both Teams(TeamA, TeamB)
 public class ScoreManager : MonoBehaviour
 {
     [Header("Events")]
@@ -59,19 +59,16 @@ public class ScoreManager : MonoBehaviour
         Debug.Log("[ScoreManager] Scores reset to zero.");
     }
     
-    
-    /// Returns the winning team at match end
-    /// Returns TeamType.None if scores are tied
+    // Returns the winning team at match end
+    // Returns TeamType.None if scores are tied
     public TeamType GetWinner()
     {
         if (_teamAScore > _teamBScore) return TeamType.TeamA;
         if (_teamBScore > _teamAScore) return TeamType.TeamB;
         return TeamType.None;
     }
-
-    /// <summary>
-    /// Convenience display string for UI. e.g. "150 — 200"
-    /// </summary>
+    
+    // Convenience display string for UI. e.g. "150 — 200"
     public string GetScoreDisplayString()
     {
         return _teamAScore.ToString() + " — " + _teamBScore.ToString();

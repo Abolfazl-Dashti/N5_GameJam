@@ -1,18 +1,22 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.Events;
+using UnityEngine.InputSystem;
 
 public class PlayerDiscHandler : MonoBehaviour, IDiscInteractor
 {
-    // ScriptableObject References
     [SerializeField] private DiscHandlerData discHandlerData;
-    
-    // Component References
+
     [SerializeField] private Transform cameraTransform;
     [SerializeField] private DiscController disc;
 
     [Header("If assigned, we will share PlayerController's input instance")]
     [SerializeField] private PlayerController playerController;
+
+    [Header("Catch Assist")]
+    [Tooltip("Max angle (degrees) between camera forward and disc direction " +
+             "for the E-key catch to succeed when the disc is beyond catchRadius. " +
+             "Higher = more forgiving.")]
+    [SerializeField] private float catchAssistAngle = 85f;
 
     [Header("Events")]
     public UnityEvent onPlayerCaught;
@@ -36,6 +40,9 @@ public class PlayerDiscHandler : MonoBehaviour, IDiscInteractor
 
     [Header("Redirect Extra Rules")]
     [SerializeField] private float minRedirectDiscSpeed = 2f;
+
+    // Reusable buffer for OverlapSphere catch detection — avoids per-frame allocation
+    private Collider[] _catchOverlapBuffer = new Collider[8];
 
     private void Awake()
     {
@@ -89,7 +96,6 @@ public class PlayerDiscHandler : MonoBehaviour, IDiscInteractor
             return;
         }
 
-        // Fallback: create our own input instance
         _inputAction = new Main_InputSystem();
         _usingSharedInput = false;
     }
@@ -98,8 +104,6 @@ public class PlayerDiscHandler : MonoBehaviour, IDiscInteractor
     {
         if (_inputAction == null) return;
 
-        // These action names must exist in your Main_InputSystem input actions:
-        // Player.Throw, Player.Catch, Player.Redirect
         _inputAction.Player.Throw.started += OnThrowStarted;
         _inputAction.Player.Throw.canceled += OnThrowCanceled;
 
@@ -118,9 +122,6 @@ public class PlayerDiscHandler : MonoBehaviour, IDiscInteractor
         _inputAction.Player.Redirect.performed -= OnRedirectPerformed;
     }
 
-    // -------------------------------------------------------------------------
-    // INPUT CALLBACKS (NO PlayerInput component needed)
-    // -------------------------------------------------------------------------
     private void OnThrowStarted(InputAction.CallbackContext context)
     {
         if (!_isHoldingDisc) return;
@@ -152,7 +153,9 @@ public class PlayerDiscHandler : MonoBehaviour, IDiscInteractor
         AttemptRedirect();
     }
     
-    // Catch Logic
+    // CATCH LOGIC
+    // Passive auto-catch — triggers when standing close to a free/passed disc
+    // No look-direction requirement at all
     private void AttemptProximityCatch()
     {
         if (!disc) return;
@@ -163,51 +166,86 @@ public class PlayerDiscHandler : MonoBehaviour, IDiscInteractor
         float distanceToDisc = Vector3.Distance(transform.position, disc.transform.position);
         if (distanceToDisc <= discHandlerData.catchRadius)
         {
-            CatchDisc();
+            CatchDisc(disc);
         }
     }
-
+    
+    // 'E' key directed catch. Uses Physics.OverlapSphere for robust detection instead
+    // of relying purely on a single assigned reference + raw transform distance
+    // Close range = no angle requirement at all (fixes "clunky catch" feel)
+    // Extended range = generous camera-orientation cone as a secondary allowance
     private void AttemptDirectedCatch()
     {
-        if (!disc) return;
+        DiscController foundDisc = FindNearestCatchableDisc(discHandlerData.catchCastRange);
+        if (!foundDisc) return;
+
+        float distanceToDisc = Vector3.Distance(transform.position, foundDisc.transform.position);
+
+        // Close range — always catch, regardless of where the player is looking.
+        if (distanceToDisc <= discHandlerData.catchRadius)
+        {
+            CatchDisc(foundDisc);
+            return;
+        }
+
+        // Extended range — require the disc to be roughly in front of the camera.
         if (!cameraTransform) return;
 
-        if (disc.currentState == DiscController.DiscState.Held) return;
+        Vector3 directionToDisc = (foundDisc.transform.position - cameraTransform.position).normalized;
+        float angleToDisc = Vector3.Angle(cameraTransform.forward, directionToDisc);
 
-        Ray catchRay = new Ray(cameraTransform.position, cameraTransform.forward);
-        RaycastHit hit;
-
-        bool discInCastPath = Physics.SphereCast(
-            catchRay,
-            discHandlerData.catchCastRadius,
-            out hit,
-            discHandlerData.catchCastRange,
-            discHandlerData.discLayerMask
-        );
-
-        if (!discInCastPath) return;
-
-        DiscController hitDisc = hit.collider.GetComponent<DiscController>();
-        if (hitDisc != null && hitDisc == disc)
+        if (angleToDisc <= catchAssistAngle)
         {
-            CatchDisc();
+            CatchDisc(foundDisc);
         }
     }
-
-    private void CatchDisc()
+    
+    // Finds the nearest catchable (Free or Passed) disc within range using an
+    // OverlapSphere against the dedicated disc layer mask
+    private DiscController FindNearestCatchableDisc(float range)
     {
-        if (!disc) return;
+        int hitCount = Physics.OverlapSphereNonAlloc(
+            transform.position, range, _catchOverlapBuffer, discHandlerData.discLayerMask);
+        Debug.Log($"[PlayerDiscHandler] OverlapSphere found {hitCount} colliders " +
+                  $"(range={range}, layerMask={discHandlerData.discLayerMask.value}).");
+
+        DiscController nearest = null;
+        float nearestDist = float.MaxValue;
+
+        for (int i = 0; i < hitCount; i++)
+        {
+            DiscController candidate = _catchOverlapBuffer[i].GetComponent<DiscController>();
+            if (!candidate) continue;
+            if (candidate.currentState == DiscController.DiscState.Held) continue;
+
+            float dist = Vector3.Distance(transform.position, candidate.transform.position);
+            if (dist < nearestDist)
+            {
+                nearestDist = dist;
+                nearest = candidate;
+            }
+        }
+
+        return nearest;
+    }
+
+    private void CatchDisc(DiscController targetDisc)
+    {
+        if (!targetDisc) return;
+
+        disc = targetDisc;
 
         _isHoldingDisc = true;
         _isChargingThrow = false;
         _currentChargeTime = 0f;
         _catchAttemptBuffer = CatchBufferDuration;
 
-        disc.SetHeld(transform);
+        // Smooth magnetic-pull catch for better game feel
+        disc.RequestCatch(transform);
         onPlayerCaught.Invoke();
     }
     
-    // Throw Logic
+    // THROW LOGIC
     private void TickThrowCharge()
     {
         _currentChargeTime += Time.deltaTime;
@@ -251,7 +289,7 @@ public class PlayerDiscHandler : MonoBehaviour, IDiscInteractor
         return loftedDirection.normalized;
     }
 
-    // Redirect Logic
+    // REDIRECT LOGIC
     private void AttemptRedirect()
     {
         if (!disc) return;
@@ -259,7 +297,6 @@ public class PlayerDiscHandler : MonoBehaviour, IDiscInteractor
 
         if (disc.currentState == DiscController.DiscState.Held) return;
 
-        // Require the disc to actually be moving (prevents redirecting a stopped disc)
         float discSpeed = disc.GetComponent<Rigidbody>().linearVelocity.magnitude;
         if (discSpeed < minRedirectDiscSpeed) return;
 
@@ -284,8 +321,7 @@ public class PlayerDiscHandler : MonoBehaviour, IDiscInteractor
 
     public void OnDiscReceived(DiscController discController)
     {
-        disc = discController;
-        CatchDisc();
+        CatchDisc(discController);
     }
 
     public void OnDiscLost()
@@ -304,7 +340,7 @@ public class PlayerDiscHandler : MonoBehaviour, IDiscInteractor
     {
         return _isHoldingDisc;
     }
-    
+
     private void TickCooldowns()
     {
         if (_catchAttemptBuffer > 0f)

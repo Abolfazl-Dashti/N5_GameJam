@@ -110,7 +110,7 @@ public class PlayerCombat : MonoBehaviour
         TryStartDash();
     }
     
-    /// Validates conditions and starts the dash if allowed.
+    /// Validates conditions and starts the dash if allowed
     private void TryStartDash()
     {
         if (_isDashing) return;
@@ -140,8 +140,8 @@ public class PlayerCombat : MonoBehaviour
         Debug.Log($"PlayerCombat: {gameObject.name} dashed!");
     }
     
-    /// Called every FixedUpdate while dashing.
-    /// Moves the player and checks for opponent collisions.
+    /// Called every FixedUpdate while dashing
+    /// Moves the player and checks for opponent collisions
     private void TickDash()
     {
         _dashTimer += Time.fixedDeltaTime;
@@ -185,8 +185,8 @@ public class PlayerCombat : MonoBehaviour
         onDashEnded.Invoke();
     }
     
-    // OverlapSphere around the player during dash to find opponents.
-    // Only triggers stagger if the opponent is currently holding the disc.
+    // OverlapSphere around the player during dash to find opponents
+    // Only triggers stagger if the opponent is currently holding the disc
     private void CheckForOpponentCollision()
     {
         if (_hasHitOpponentThisDash) return;
@@ -269,7 +269,7 @@ public class PlayerCombat : MonoBehaviour
         }
     }
     
-    // Returns the stagger duration from the data file & Called by PlayerController.TickStagger() to know when to recover.
+    // Returns the stagger duration from the data file & Called by PlayerController.TickStagger() to know when to recover
     public float GetStaggerDuration()
     {
         if (!staggerData) return 1.5f;
@@ -286,8 +286,8 @@ public class PlayerCombat : MonoBehaviour
         return _dashOnCooldown;
     }
     
-    // Returns 0-1 normalized cooldown progress for UI display.
-    // 0 = just used dash, 1 = fully recharged.
+    // Returns 0-1 normalized cooldown progress for UI display
+    // 0 = just used dash, 1 = fully recharged
     public float GetDashCooldownProgress()
     {
         if (!_dashOnCooldown) return 1f;

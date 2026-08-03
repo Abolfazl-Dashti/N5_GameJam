@@ -1,14 +1,14 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-public class PlayerController : MonoBehaviour, IStaggerable
+public class PlayerController : MonoBehaviour, IStaggerable, IResettable
 {
     // Parameters
     [SerializeField] private float moveSpeed;
     [SerializeField] private float jumpForce;
     [SerializeField] private LayerMask groundLayer;
     [SerializeField] private float groundCheckDistance;
-    [SerializeField] private float groundCheckOriginOffset = 0.9f;
+    // [SerializeField] private float groundCheckOriginOffset = 0.9f;
     
     // Look Settings
     [SerializeField] private Transform cameraTransform;
@@ -28,6 +28,9 @@ public class PlayerController : MonoBehaviour, IStaggerable
     private bool _isStaggered;
     private float _staggerTimer;
     private PlayerCombat _playerCombat;
+    
+    // Parameter for IResettable
+    private bool _isFrozen;
 
     private void Awake()
     {
@@ -61,6 +64,7 @@ public class PlayerController : MonoBehaviour, IStaggerable
     private void Jump(InputAction.CallbackContext context)
     {
         if (_isStaggered) return;
+        if (_isFrozen) return;
         if (!_isGrounded) return;
         
         rb.AddForce(Vector3.up * jumpForce * Time.deltaTime, ForceMode.Impulse);
@@ -83,7 +87,7 @@ public class PlayerController : MonoBehaviour, IStaggerable
         _isGrounded = Physics.Raycast(transform.position, Vector3.down, groundCheckDistance, groundLayer);
         Debug.DrawRay(transform.position, Vector3.down * groundCheckDistance, Color.blue);
         
-        if (_isStaggered) return;  // Don't move while stagger
+        if (_isStaggered || _isFrozen) return;  // Don't move while stagger or freezing
         
         RotatePlayerToCameraDirection();
         MovePlayer();
@@ -164,4 +168,36 @@ public class PlayerController : MonoBehaviour, IStaggerable
     {
         return _isStaggered;
     }
+
+    #region IResettable
+    public void ResetToSpawn(Vector3 spawnPosition, Quaternion spawnRotation)
+    {
+        // Teleport
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+        transform.position = spawnPosition;
+        transform.rotation = spawnRotation;
+
+        // Clear any stagger state on respawn
+        _isStaggered = false;
+        _staggerTimer = 0f;
+
+        // Clear move input so player doesn't drift after teleport
+        moveInput = Vector2.zero;
+
+        Debug.Log($"[PlayerController] {gameObject.name} reset to spawn at {spawnPosition}.");
+    }
+
+    public void FreezePlayer()
+    {
+        _isFrozen = true;
+        rb.linearVelocity = Vector3.zero;
+        moveInput = Vector2.zero;
+    }
+
+    public void UnfreezePlayer()
+    {
+        _isFrozen = false;
+    }
+    #endregion
 }
