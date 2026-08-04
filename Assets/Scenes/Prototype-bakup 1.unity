@@ -2578,6 +2578,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Instability (loop) Variant
       objectReference: {fileID: 0}
+    - target: {fileID: 4619513582240755705, guid: 05c43d3c55ea43149b724f8077999a57, type: 3}
+      propertyPath: m_Layer
+      value: 3
+      objectReference: {fileID: 0}
     - target: {fileID: 4619513582240755706, guid: 05c43d3c55ea43149b724f8077999a57, type: 3}
       propertyPath: m_LocalScale.x
       value: 0.00076223345
@@ -2669,6 +2673,10 @@ PrefabInstance:
     - target: {fileID: 4619513583346532308, guid: 05c43d3c55ea43149b724f8077999a57, type: 3}
       propertyPath: m_LocalScale.z
       value: 0.05429602
+      objectReference: {fileID: 0}
+    - target: {fileID: 4619513583346532309, guid: 05c43d3c55ea43149b724f8077999a57, type: 3}
+      propertyPath: m_Layer
+      value: 3
       objectReference: {fileID: 0}
     - target: {fileID: 4619513583346532310, guid: 05c43d3c55ea43149b724f8077999a57, type: 3}
       propertyPath: InitialModule.startColor.maxColor.g
@@ -3647,6 +3655,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 730792186888820268, guid: 73c49d4a59319634ea2c6b172af471aa, type: 3}
+      propertyPath: m_Layer
+      value: 3
+      objectReference: {fileID: 0}
     - target: {fileID: 1262944568249032318, guid: 73c49d4a59319634ea2c6b172af471aa, type: 3}
       propertyPath: m_Convex
       value: 1
@@ -3695,9 +3707,41 @@ PrefabInstance:
       propertyPath: m_Enabled
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 4496592199686769542, guid: 73c49d4a59319634ea2c6b172af471aa, type: 3}
+      propertyPath: m_Layer
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 4774810074305871678, guid: 73c49d4a59319634ea2c6b172af471aa, type: 3}
+      propertyPath: m_Layer
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 5481010427235308792, guid: 73c49d4a59319634ea2c6b172af471aa, type: 3}
+      propertyPath: m_Layer
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 5481010428339930324, guid: 73c49d4a59319634ea2c6b172af471aa, type: 3}
+      propertyPath: m_Layer
+      value: 3
+      objectReference: {fileID: 0}
     - target: {fileID: 5917398910126275146, guid: 73c49d4a59319634ea2c6b172af471aa, type: 3}
       propertyPath: m_Name
       value: Disc
+      objectReference: {fileID: 0}
+    - target: {fileID: 5917398910126275146, guid: 73c49d4a59319634ea2c6b172af471aa, type: 3}
+      propertyPath: m_Layer
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 6150078868623003461, guid: 73c49d4a59319634ea2c6b172af471aa, type: 3}
+      propertyPath: m_Layer
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 7340053905248126998, guid: 73c49d4a59319634ea2c6b172af471aa, type: 3}
+      propertyPath: m_Layer
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 7927715910277171056, guid: 73c49d4a59319634ea2c6b172af471aa, type: 3}
+      propertyPath: m_Layer
+      value: 3
       objectReference: {fileID: 0}
     - target: {fileID: 8173047110910952567, guid: 73c49d4a59319634ea2c6b172af471aa, type: 3}
       propertyPath: m_Mass
