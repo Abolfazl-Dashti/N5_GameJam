@@ -67,7 +67,7 @@ public class PlayerController : MonoBehaviour, IStaggerable, IResettable
         if (_isFrozen) return;
         if (!_isGrounded) return;
         
-        rb.AddForce(Vector3.up * jumpForce * Time.deltaTime, ForceMode.Impulse);
+        rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
         _isGrounded = false;
     }
 
