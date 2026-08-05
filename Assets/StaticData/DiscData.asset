@@ -16,9 +16,9 @@ MonoBehaviour:
   maxSpeed: 60
   spinTorque: 15
   minFreeSpeed: 12
-  wallReboundBoostMultiplier: 1.5
+  wallReboundBoostMultiplier: 1.005
   floorReboundBoostMultiplier: 1.248
-  ceilingReboundBoostMultiplier: 1.426
+  ceilingReboundBoostMultiplier: 1.263
   freeDrag: 0.05
   gravityScale: 0.4
   holdOffset: {x: 0, y: 0.3, z: 1.11}

@@ -13,11 +13,11 @@ MonoBehaviour:
   m_Name: Bot 1
   m_EditorClassIdentifier: Assembly-CSharp::BotData
   team: 1
-  moveSpeed: 25
+  moveSpeed: 22
   angularSpeed: 300
   acceleration: 12
-  catchRadius: 1.8
-  catchVerticalTolerance: 2.2
+  catchRadius: 3.98
+  catchVerticalTolerance: 4.56
   redirectRadius: 2.5
   shootRange: 10
   aimInaccuracy: 0.2

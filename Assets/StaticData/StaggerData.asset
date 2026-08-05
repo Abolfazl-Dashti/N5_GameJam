@@ -12,9 +12,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4d2e6bfc19ae9fc4e87e6b46896fff3c, type: 3}
   m_Name: StaggerData
   m_EditorClassIdentifier: Assembly-CSharp::StaggerData
-  dashSpeed: 28
-  dashDuration: 0.6
-  dashCooldown: 1.2
+  dashSpeed: 40.3
+  dashDuration: 0.56
+  dashCooldown: 2.39
   opponentLayerMask:
     serializedVersion: 2
     m_Bits: 1024

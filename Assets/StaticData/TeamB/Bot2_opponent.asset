@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Bot2_opponent
   m_EditorClassIdentifier: Assembly-CSharp::BotData
   team: 2
-  moveSpeed: 25
+  moveSpeed: 20.3
   angularSpeed: 300
   acceleration: 12
   catchRadius: 2
