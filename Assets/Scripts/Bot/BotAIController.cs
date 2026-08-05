@@ -59,9 +59,19 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
     private float _stateEvalTimer;
 
     private Rigidbody _discRigidbody;
+    private bool _hasLoggedSetupError;
+    private float _offMeshRecoveryTimer;
+    private const float OffMeshRecoveryInterval = 0.5f;
 
-    public BotState CurrentState => _currentState;
-    public TeamType Team => botData ? botData.team : TeamType.None;
+    public BotState CurrentState
+    {
+        get { return _currentState; }
+    }
+
+    public TeamType Team
+    {
+        get { return botData ? botData.team : TeamType.None; }
+    }
 
     private void Awake()
     {
@@ -87,9 +97,16 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
 
     private void Update()
     {
+        if (!IsSetupValid())
+        {
+            return;
+        }
+        
+        TickNavMeshRecovery();
+
         if (_isFrozen)
         {
-            _agent.ResetPath();
+            SafeResetPath();
             return;
         }
 
@@ -99,7 +116,7 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
 
         if (_isStaggered)
         {
-            _agent.ResetPath();
+            SafeResetPath();
             return;
         }
 
@@ -120,6 +137,47 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
         {
             AttemptProximityCatch();
         }
+    }
+    
+    private bool IsSetupValid()
+    {
+        if (botData && _agent)
+        {
+            return true;
+        }
+
+        if (!_hasLoggedSetupError)
+        {
+            Debug.LogError($"[BotAIController] {gameObject.name} is missing a critical " +
+                           "reference (BotData and/or NavMeshAgent component). AI logic is " +
+                           "disabled until this is fixed in the Inspector — this prevents a " +
+                           "silent permanent freeze caused by a NullReferenceException.");
+            _hasLoggedSetupError = true;
+        }
+
+        return false;
+    }
+    
+    private void SafeResetPath()
+    {
+        if (_agent && _agent.isOnNavMesh)
+        {
+            _agent.ResetPath();
+        }
+    }
+
+    // ADDED: throttled proactive recovery. Runs independent of current state so bots
+    // never get permanently stuck off-mesh after a bad spawn or center-reset
+    private void TickNavMeshRecovery()
+    {
+        if (!_agent) return;
+        if (_agent.isOnNavMesh) return;
+
+        _offMeshRecoveryTimer -= Time.deltaTime;
+        if (_offMeshRecoveryTimer > 0f) return;
+
+        _offMeshRecoveryTimer = OffMeshRecoveryInterval;
+        TryRecoverAgentOntoNavMesh();
     }
 
     private void AttemptProximityCatch()
@@ -259,7 +317,13 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
 
     private void ExecuteIdle()
     {
-        _agent.ResetPath();
+        if (_isHoldingDisc)
+        {
+            EvaluateState();
+            return;
+        }
+
+        SafeResetPath();
     }
 
     private void ExecuteChaseDisc()
@@ -301,10 +365,7 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
         }
         else
         {
-            if (_agent && _agent.isOnNavMesh)
-            {
-                _agent.ResetPath();
-            }
+            SafeResetPath();
         }
     }
 
@@ -357,7 +418,8 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
         if (!opposingGoal) return;
 
         Vector3 goalPosition = opposingGoal.GetGoalPosition();
-        float distToGoal = Vector3.Distance(transform.position, goalPosition);
+        
+        float distToGoal = GetHorizontalDistance(transform.position, goalPosition);
 
         if (distToGoal <= botData.shootRange)
         {
@@ -409,11 +471,10 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
         {
             defendTarget = GetDefendFallbackPosition();
         }
-
+        
         SetAgentDestination(defendTarget);
     }
     
-    // --------- For Goal Finding Bug in prototype(not stadium yet) ---------
     private Vector3 GetDefendFallbackPosition()
     {
         if (!ownGoal) return transform.position;
@@ -627,8 +688,8 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
         if (!_isHoldingDisc) return false;
         if (!opposingGoal) return false;
         if (!opposingGoal.IsGoalActive()) return false;
-
-        float distToGoal = Vector3.Distance(transform.position, opposingGoal.GetGoalPosition());
+        
+        float distToGoal = GetHorizontalDistance(transform.position, opposingGoal.GetGoalPosition());
         return distToGoal <= botData.shootRange;
     }
 
@@ -644,6 +705,9 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
     private bool IsDiscChaseable()
     {
         if (!disc) return false;
+        
+        if (_catchBuffer > 0f) return false;
+
         return disc.currentState == DiscController.DiscState.Free ||
                disc.currentState == DiscController.DiscState.Passed;
     }
@@ -711,11 +775,7 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
     private Transform GetBestPassTarget()
     {
         if (!teammate) return null;
-
-        // Defensive check: confirm the assigned teammate Transform is actually on
-        // OUR team. Catches Inspector mis-wiring (e.g., accidentally dragging an
-        // enemy bot into the teammate slot) that would otherwise cause the bot to
-        // "pass" the disc straight to an opponent
+        
         TeamType teammateTeam = GetTeamFromGameObject(teammate.gameObject);
         if (teammateTeam != Team)
         {
@@ -791,14 +851,42 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
             TryRecoverAgentOntoNavMesh();
             if (!_agent.isOnNavMesh) return;
         }
+        
+        Vector3 clampedDestination = ClampToNavMesh(destination);
 
         if (_agent.isStopped) _agent.isStopped = false;
 
-        bool success = _agent.SetDestination(destination);
+        bool success = _agent.SetDestination(clampedDestination);
         if (!success)
         {
-            Debug.LogWarning($"[BotAIController] {gameObject.name} failed to path to {destination}.");
+            Debug.LogWarning($"[BotAIController] {gameObject.name} failed to path to " +
+                             $"{clampedDestination} (raw target was {destination}).");
         }
+    }
+    
+    private Vector3 ClampToNavMesh(Vector3 rawTarget)
+    {
+        Vector3 floorPoint;
+        if (TryProjectOntoFloor(rawTarget, out floorPoint))
+        {
+            NavMeshHit navHit;
+            if (NavMesh.SamplePosition(floorPoint, out navHit, botData.navMeshSnapTolerance, _agent.areaMask))
+            {
+                return navHit.position;
+            }
+        }
+
+        // Wider fallback sample directly around the raw target in case the floor
+        // raycast found nothing beneath it (e.g. over a goal mouth gap)
+        NavMeshHit wideHit;
+        if (NavMesh.SamplePosition(rawTarget, out wideHit, botData.navMeshFallbackSampleDistance, _agent.areaMask))
+        {
+            return wideHit.position;
+        }
+
+        Debug.LogWarning($"[BotAIController] {gameObject.name} could not resolve a valid " +
+                         $"NavMesh point near target {rawTarget}. Holding position.");
+        return transform.position;
     }
     
     // Prevents a permanent silent freeze
@@ -807,7 +895,10 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
         float recoverRadius = botData ? botData.navMeshFallbackSampleDistance : 10f;
 
         NavMeshHit navHit;
-        if (NavMesh.SamplePosition(transform.position, out navHit, recoverRadius, NavMesh.AllAreas))
+        // FIX (Root Cause #5): sample using this agent's own areaMask instead of
+        // NavMesh.AllAreas, so we never warp the bot onto a point that its own
+        // NavMeshAgent settings would refuse to path across.
+        if (NavMesh.SamplePosition(transform.position, out navHit, recoverRadius, _agent.areaMask))
         {
             _agent.Warp(navHit.position);
             Debug.LogWarning($"[BotAIController] {gameObject.name} was off the NavMesh — recovered to nearest point.");
@@ -825,8 +916,7 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
 
         Vector3 discPosition = disc.transform.position;
 
-        // Predict horizontal (XZ) lead only. Vertical velocity is irrelevant.
-        // here because we project straight down onto the floor regardless of height
+        // ۱. محاسبه نقطه پیش‌بینی افقی (XZ)
         Vector3 predictedXZ = discPosition;
         if (_discRigidbody)
         {
@@ -835,63 +925,60 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
             predictedXZ += flatVelocity * botData.chaseLeadTime;
         }
 
-        // Project straight down onto the floor from the predicted XZ point
-        Vector3 floorPoint;
-        if (TryProjectOntoFloor(predictedXZ, out floorPoint))
+        // ۲. ساخت نقاط پایه هم‌سطح با پای بات (جهت جلوگیری از باگ ارتفاع Y)
+        Vector3 predictedGroundBase = new Vector3(predictedXZ.x, transform.position.y, predictedXZ.z);
+        Vector3 discGroundBase = new Vector3(discPosition.x, transform.position.y, discPosition.z);
+
+        // شعاع جستجوی عریض برای فواصل دور و نقاط خارج از مرز
+        float searchRadius = Mathf.Max(botData.navMeshFallbackSampleDistance, 20f);
+
+        // تلاش اول: Raycast رو به پایین برای نقطه پیش‌بینی + جذب به NavMesh
+        Vector3 predictedFloorPoint;
+        Vector3 targetFloorPoint = TryProjectOntoFloor(predictedXZ, out predictedFloorPoint) 
+            ? predictedFloorPoint 
+            : predictedGroundBase;
+
+        NavMeshHit navHit;
+        if (NavMesh.SamplePosition(targetFloorPoint, out navHit, searchRadius, _agent.areaMask))
         {
-            NavMeshHit navHit;
-            if (NavMesh.SamplePosition(floorPoint, out navHit, botData.navMeshSnapTolerance, NavMesh.AllAreas))
-            {
-                return navHit.position;
-            }
+            return navHit.position;
         }
 
-        // floor raycast from the disc's actual current position
-        // (no horizontal prediction), in case the predicted point overshot past a wall/gap
-        if (TryProjectOntoFloor(discPosition, out floorPoint))
+        // تلاش دوم: Raycast رو به پایین برای موقعیت فعلی دیسک + جذب به NavMesh
+        Vector3 currentFloorPoint;
+        Vector3 discTargetFloorPoint = TryProjectOntoFloor(discPosition, out currentFloorPoint)
+            ? currentFloorPoint
+            : discGroundBase;
+
+        if (NavMesh.SamplePosition(discTargetFloorPoint, out navHit, searchRadius, _agent.areaMask))
         {
-            NavMeshHit navHit;
-            if (NavMesh.SamplePosition(floorPoint, out navHit, botData.navMeshSnapTolerance, NavMesh.AllAreas))
-            {
-                return navHit.position;
-            }
+            return navHit.position;
         }
 
-        // the floor raycast itself found nothing beneath the disc
-        // (e.g., disc is directly over a goal Mouth / out-of-bounds gap with no floor
-        // collider). Widen the search directly around the disc's raw 3D position
-        NavMeshHit wideHit;
-        if (NavMesh.SamplePosition(discPosition, out wideHit, botData.navMeshFallbackSampleDistance, NavMesh.AllAreas))
+        // تلاش سوم: جستجوی مستقیم حول موقعیت افقی دیسک با شعاع بزرگ (۳۰ متری)
+        if (NavMesh.SamplePosition(discGroundBase, out navHit, 30f, _agent.areaMask))
         {
-            return wideHit.position;
+            return navHit.position;
         }
 
-        // Absolute last resort. Only reached if the entire arena floor
-        // near the disc is unbaked/unwalkable. Hold current position rather than
-        // sending the agent toward a location NavMesh has no path to
-        Debug.LogWarning($"[BotAIController] {gameObject.name} could not resolve any valid " +
-                      $"NavMesh point near disc position {discPosition}. Holding position.");
-        return transform.position;
+        // آخرین راهکار: بازگرداندن تصویر افقی دیسک روی زمین به جای transform.position
+        // این کار باعث می‌شود بات حتماً به سمت دیسک حرکت کند و قفل نشود
+        return discGroundBase;
     }
     
-    // Casts straight down from well above the given XZ column to find the floor.
-    // Works regardless of how high the disc currently is (floor-level, mid-throw,
-    // or bouncing off the ceiling) because raycast length is independent of the
-    // NavMesh sampling radius problem described above.
     private bool TryProjectOntoFloor(Vector3 origin, out Vector3 floorPoint)
     {
         floorPoint = origin;
 
-        // Fixed origin — always starts above the true ceiling, independent of
-        // where the disc currently is at the moment this is called
-        Vector3 rayStart = new Vector3(origin.x, botData.arenaCeilingHeight + 5f, origin.z);
-
-        // Ray must travel the full vertical span: from above the ceiling, past the
-        // ceiling itself, past the disc at any height, all the way down to the floor
-        float rayLength = botData.arenaCeilingHeight + 10f;
+        // پرتاب شعاع از ارتفاعی بالاتر از سقف به سمت پایین
+        float startY = botData ? (botData.arenaCeilingHeight + 10f) : 110f;
+        Vector3 rayStart = new Vector3(origin.x, startY, origin.z);
+        float rayLength = startY + 20f;
 
         RaycastHit hit;
-        if (Physics.Raycast(rayStart, Vector3.down, out hit, rayLength, botData.floorLayerMask))
+        LayerMask mask = botData ? botData.floorLayerMask : (LayerMask)~0;
+
+        if (Physics.Raycast(rayStart, Vector3.down, out hit, rayLength, mask))
         {
             floorPoint = hit.point;
             return true;
@@ -904,6 +991,13 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
     {
         if (!disc) return float.MaxValue;
         Vector3 flat = disc.transform.position - transform.position;
+        flat.y = 0f;
+        return flat.magnitude;
+    }
+    
+    private float GetHorizontalDistance(Vector3 a, Vector3 b)
+    {
+        Vector3 flat = b - a;
         flat.y = 0f;
         return flat.magnitude;
     }
@@ -979,7 +1073,8 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
         {
             Vector3 knockBackTarget = transform.position + knockbackDirection * 0.8f;
             NavMeshHit navHit;
-            if (NavMesh.SamplePosition(knockBackTarget, out navHit, 2f, NavMesh.AllAreas))
+            
+            if (NavMesh.SamplePosition(knockBackTarget, out navHit, 2f, _agent.areaMask))
             {
                 _agent.Warp(navHit.position);
             }
@@ -1012,7 +1107,19 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
         }
         else
         {
-            transform.position = spawnPosition;
+            NavMeshHit navHit;
+            float sampleRadius = botData ? botData.navMeshFallbackSampleDistance : 10f;
+            if (_agent && NavMesh.SamplePosition(spawnPosition, out navHit, sampleRadius, _agent.areaMask))
+            {
+                _agent.Warp(navHit.position);
+            }
+            else
+            {
+                transform.position = spawnPosition;
+                Debug.LogWarning($"[BotAIController] {gameObject.name} — could not find a valid " +
+                                 $"NavMesh point near spawn {spawnPosition}. Placed via raw transform " +
+                                 "instead; bot may remain off-mesh until TickNavMeshRecovery corrects it.");
+            }
         }
 
         transform.rotation = spawnRotation;
@@ -1026,7 +1133,7 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
 
         if (_agent)
         {
-            _agent.ResetPath();
+            SafeResetPath();
             _agent.isStopped = true;
         }
     }
@@ -1045,6 +1152,7 @@ public class BotAIController : MonoBehaviour, IDiscInteractor, IStaggerable, IRe
     private void ConfigureAgent()
     {
         if (!_agent) return;
+        if (!botData) return;
 
         _agent.speed = botData.moveSpeed;
         _agent.angularSpeed = botData.angularSpeed;

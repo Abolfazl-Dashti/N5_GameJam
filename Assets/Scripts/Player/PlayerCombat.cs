@@ -14,22 +14,13 @@ public class PlayerCombat : MonoBehaviour
     [SerializeField] private Transform cameraTransform;
     [SerializeField] private DiscController discController;
 
-    [Tooltip("Transform used as the forward-facing dash origin point. " +
-             "Usually the player root or a chest bone child.")]
+    [Tooltip("Transform used as the forward-facing dash origin point")]
     [SerializeField] private Transform dashOrigin;
 
     [Header("Events")]
-    [Tooltip("Fires when the player starts a dash.")]
     public UnityEvent onDashStarted;
-
-    [Tooltip("Fires when the dash ends (either completed or hit opponent).")]
     public UnityEvent onDashEnded;
-
-    [Tooltip("Fires when this player successfully staggers an opponent. " +
-             "Passes the staggered opponent's Transform.")]
     public UnityEvent<Transform> onOpponentStaggered;
-
-    [Tooltip("Fires when this player is staggered by an opponent.")]
     public UnityEvent onSelfStaggered;
 
     // Dash state
@@ -44,80 +35,85 @@ public class PlayerCombat : MonoBehaviour
     // Collision check interval
     private float _collisionCheckTimer;
 
-    // Tracks opponents already hit this dash — prevents double-stagger on same target
-    private Collider[] _hitCollidersBuffer = new Collider[8];
+    // Hit Buffer
+    private Collider[] _hitCollidersBuffer = new Collider[16];
     private bool _hasHitOpponentThisDash = false;
 
-    // Input
+    // Input Actions
     private Main_InputSystem _inputActions;
-    
+
     private void Awake()
     {
-        SetupInput();
+        if (!playerController) playerController = GetComponent<PlayerController>();
+        if (!rb) rb = GetComponent<Rigidbody>();
     }
 
     private void OnEnable()
     {
-        BindInputs();
+        BindDashInput();
     }
 
     private void OnDisable()
     {
-        UnbindInputs();
+        UnbindDashInput();
     }
 
-    private void Update()
+    private void BindDashInput()
     {
-        TickDashCooldown();
-    }
-
-    private void FixedUpdate()
-    {
-        if (_isDashing)
-        {
-            TickDash();
-        }
-    }
-    
-    private void SetupInput()
-    {
-        // Share input instance from PlayerController to avoid duplication
         if (playerController && playerController.MainInputSystem != null)
         {
             _inputActions = playerController.MainInputSystem;
-            return;
+        }
+        else if (_inputActions == null)
+        {
+            _inputActions = new Main_InputSystem();
         }
 
-        // Fallback
-        _inputActions = new Main_InputSystem();
         _inputActions.Enable();
-    }
-
-    private void BindInputs()
-    {
-        if (_inputActions == null) return;
+        _inputActions.Player.Dash.started -= OnDashStarted;
         _inputActions.Player.Dash.started += OnDashStarted;
     }
 
-    private void UnbindInputs()
+    private void UnbindDashInput()
     {
-        if (_inputActions == null) return;
-        _inputActions.Player.Dash.started -= OnDashStarted;
+        if (_inputActions != null)
+        {
+            _inputActions.Player.Dash.started -= OnDashStarted;
+        }
     }
-    
+
     private void OnDashStarted(InputAction.CallbackContext context)
     {
         TryStartDash();
     }
-    
-    /// Validates conditions and starts the dash if allowed
-    private void TryStartDash()
-    {
-        if (_isDashing) return;
-        if (_dashOnCooldown) return;
 
-        // Cannot dash while staggered
-        if (playerController && playerController.IsStaggered()) return;
+    public void TryStartDash()
+    {
+        if (!staggerData)
+        {
+            Debug.LogError("[PlayerCombat] StaggerData Asset is NOT assigned in Inspector!", this);
+            return;
+        }
+
+        if (!rb)
+        {
+            Debug.LogError("[PlayerCombat] Rigidbody is NOT assigned in Inspector!", this);
+            return;
+        }
+
+        if (_isDashing) return;
+
+        if (_dashOnCooldown)
+        {
+            Debug.Log($"[PlayerCombat] Dash on cooldown ({_dashCooldownTimer:F1}s left)");
+            return;
+        }
+
+        if (playerController && playerController.IsStaggered())
+        {
+            Debug.Log("[PlayerCombat] Cannot dash while staggered!");
+            return;
+        }
 
         StartDash();
     }
@@ -129,37 +125,52 @@ public class PlayerCombat : MonoBehaviour
         _hasHitOpponentThisDash = false;
         _collisionCheckTimer = 0f;
 
-        // Dash in the direction the player is currently facing (camera-flat forward)
         _dashDirection = GetFlatForward();
 
-        // Cancel any existing velocity so dash direction is clean
-        rb.linearVelocity = new Vector3(0f, rb.linearVelocity.y, 0f);
+        // صفر کردن سرعت قبلی Y/XZ برای حرکت دش شفاف و بدون لگد
+        rb.linearVelocity = Vector3.zero;
 
         onDashStarted.Invoke();
 
-        Debug.Log($"PlayerCombat: {gameObject.name} dashed!");
+        Debug.Log($"[PlayerCombat] {gameObject.name} DASH STARTED! Speed: {staggerData.dashSpeed}");
     }
-    
-    /// Called every FixedUpdate while dashing
-    /// Moves the player and checks for opponent collisions
+
+    private void Update()
+    {
+        TickDashCooldown();
+        
+        if (Keyboard.current != null && Keyboard.current.leftShiftKey.wasPressedThisFrame)
+        {
+            TryStartDash();
+        }
+    }
+
+    private void FixedUpdate()
+    {
+        if (_isDashing)
+        {
+            TickDash();
+        }
+    }
+
     private void TickDash()
     {
         _dashTimer += Time.fixedDeltaTime;
+        
+        // اعمال مستقیم سرعت Dash به فیزیک
+        rb.linearVelocity = new Vector3(
+            _dashDirection.x * staggerData.dashSpeed, 
+            rb.linearVelocity.y, 
+            _dashDirection.z * staggerData.dashSpeed
+        );
 
-        // Apply dash velocity directly — overrides normal movement
-        rb.linearVelocity = new Vector3(_dashDirection.x * staggerData.dashSpeed, rb.linearVelocity.y,
-            _dashDirection.z * staggerData.dashSpeed);
-
-        // Periodically check for opponent hits during the dash window
         _collisionCheckTimer += Time.fixedDeltaTime;
-
         if (_collisionCheckTimer >= staggerData.collisionCheckInterval)
         {
             _collisionCheckTimer = 0f;
             CheckForOpponentCollision();
         }
 
-        // End dash when duration expires
         if (_dashTimer >= staggerData.dashDuration)
         {
             EndDash();
@@ -171,22 +182,16 @@ public class PlayerCombat : MonoBehaviour
         _isDashing = false;
         _dashTimer = 0f;
 
-        // Bleed off dash speed — don't let player rocket away post-dash
-        rb.linearVelocity = new Vector3(
-            rb.linearVelocity.x * 0.3f,
-            rb.linearVelocity.y,
-            rb.linearVelocity.z * 0.3f
-        );
+        // افت سرعت جهت جلوگیری از پرتاب ناگهانی بعد از دش
+        rb.linearVelocity = new Vector3(rb.linearVelocity.x * 0.2f, rb.linearVelocity.y, rb.linearVelocity.z * 0.2f);
 
-        // Start cooldown
         _dashOnCooldown = true;
         _dashCooldownTimer = staggerData.dashCooldown;
 
         onDashEnded.Invoke();
+        Debug.Log($"[PlayerCombat] Dash ended. Cooldown started ({staggerData.dashCooldown}s)");
     }
-    
-    // OverlapSphere around the player during dash to find opponents
-    // Only triggers stagger if the opponent is currently holding the disc
+
     private void CheckForOpponentCollision()
     {
         if (_hasHitOpponentThisDash) return;
@@ -199,62 +204,46 @@ public class PlayerCombat : MonoBehaviour
         for (int i = 0; i < hitCount; i++)
         {
             Collider hitCollider = _hitCollidersBuffer[i];
+            
+            // عدم برخورد با خود پلیر
+            if (hitCollider.transform.root == transform.root) continue;
+            
+            IStaggerable staggerable = hitCollider.GetComponentInParent<IStaggerable>();
+            if (staggerable == null || staggerable.IsStaggered()) continue;
 
-            // Don't hit yourself
-            if (hitCollider.gameObject == gameObject) continue;
+            PlayerDiscHandler opponentDiscHandler = hitCollider.GetComponentInParent<PlayerDiscHandler>();
 
-            // Check if opponent has a disc handler and is holding the disc
-            PlayerDiscHandler opponentDiscHandler = hitCollider.GetComponent<PlayerDiscHandler>();
-            bool opponentHasDisc = opponentDiscHandler && opponentDiscHandler.IsHoldingDisc();
+            ApplyStaggerToOpponent(staggerable, opponentDiscHandler, hitCollider.transform.root);
 
-            if (!opponentHasDisc) continue;
-
-            // Check if opponent is staggerable
-            IStaggerable staggerable = hitCollider.GetComponent<IStaggerable>();
-            if (staggerable == null) continue;
-
-            // Already staggered — don't double-stagger
-            if (staggerable.IsStaggered()) continue;
-
-            // Execute stagger
-            ApplyStaggerToOpponent(staggerable, opponentDiscHandler, hitCollider.transform);
-
-            // Only hit one opponent per dash
             _hasHitOpponentThisDash = true;
-
-            // End dash immediately on successful hit — feels more impactful
-            EndDash();
+            EndDash(); // اتمام دش پس از اولین برخورد موفق
             break;
         }
     }
-    
-    // Applies stagger to the opponent and knocks the disc loose.
+
     private void ApplyStaggerToOpponent(IStaggerable staggerable, PlayerDiscHandler opponentDiscHandler, Transform opponentTransform)
     {
-        // Direction from opponent outward (away from the dasher)
         Vector3 knockBackDirection = (opponentTransform.position - transform.position).normalized;
 
-        // Notify the handler the player lost the disc
-        opponentDiscHandler.OnDiscLost();
-        
-        // Force disc to release with knockaway velocity in one clean call
-        if (discController)
+        // اگر حریف دیسک را در دست دارد، دیسک رها شده و پرتاب می‌شود
+        if (opponentDiscHandler && opponentDiscHandler.IsHoldingDisc())
         {
-            Vector3 discKnockAway = (knockBackDirection + Vector3.up * staggerData.discKnockBackUpward).normalized;
-            discController.DiscForceRelease(discKnockAway * staggerData.discKnockBackForce);
+            opponentDiscHandler.OnDiscLost();
+
+            if (discController)
+            {
+                Vector3 discKnockAway = (knockBackDirection + Vector3.up * staggerData.discKnockBackUpward).normalized;
+                discController.DiscForceRelease(discKnockAway * staggerData.discKnockBackForce);
+            }
         }
-        
-        // Apply stagger to opponent's movement
+
+        // اعمال فلج/گیج شدن به حریف
         staggerable.ApplyStagger(knockBackDirection, staggerData.discKnockBackForce);
-
-        // Force opponent to lose the disc first
-        opponentDiscHandler.OnDiscLost();
-
         onOpponentStaggered.Invoke(opponentTransform);
 
-        Debug.Log($"PlayerCombat: {gameObject.name} staggered {opponentTransform.name} and knocked the disc loose!");
+        Debug.Log($"[PlayerCombat] SUCCESSFULLY STAGGERED OPPONENT: {opponentTransform.name}");
     }
-    
+
     private void TickDashCooldown()
     {
         if (!_dashOnCooldown) return;
@@ -265,56 +254,21 @@ public class PlayerCombat : MonoBehaviour
         {
             _dashOnCooldown = false;
             _dashCooldownTimer = 0f;
-            Debug.Log($"PlayerCombat: {gameObject.name} dash ready");
+            Debug.Log("[PlayerCombat] Dash is ready!");
         }
     }
-    
-    // Returns the stagger duration from the data file & Called by PlayerController.TickStagger() to know when to recover
-    public float GetStaggerDuration()
-    {
-        if (!staggerData) return 1.5f;
-        return staggerData.staggerDuration;
-    }
 
-    public bool IsDashing()
-    {
-        return _isDashing;
-    }
+    public float GetStaggerDuration() => staggerData ? staggerData.staggerDuration : 1.5f;
+    public bool IsDashing() => _isDashing;
+    public bool IsDashOnCooldown() => _dashOnCooldown;
 
-    public bool IsDashOnCooldown()
-    {
-        return _dashOnCooldown;
-    }
-    
-    // Returns 0-1 normalized cooldown progress for UI display
-    // 0 = just used dash, 1 = fully recharged
-    public float GetDashCooldownProgress()
-    {
-        if (!_dashOnCooldown) return 1f;
-        if (!staggerData) return 0f;
-
-        float elapsed = staggerData.dashCooldown - _dashCooldownTimer;
-        return elapsed / staggerData.dashCooldown;
-    }
-    
     private Vector3 GetFlatForward()
     {
         Transform camTransform = cameraTransform ? cameraTransform : transform;
-
         Vector3 flat = camTransform.forward;
         flat.y = 0f;
-
-        if (flat.sqrMagnitude < 0.001f)
-        {
-            flat = transform.forward;
-        }
-
-        return flat.normalized;
+        return flat.sqrMagnitude < 0.001f ? transform.forward : flat.normalized;
     }
-    
-    // Call this when the player gets staggered by an opponent
-    public void TriggerSelfStaggeredEvent()
-    {
-        onSelfStaggered.Invoke();
-    }
+
+    public void TriggerSelfStaggeredEvent() => onSelfStaggered.Invoke();
 }

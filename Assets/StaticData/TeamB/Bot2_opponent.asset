@@ -16,8 +16,8 @@ MonoBehaviour:
   moveSpeed: 25
   angularSpeed: 300
   acceleration: 12
-  catchRadius: 1.8
-  catchVerticalTolerance: 1.5
+  catchRadius: 2
+  catchVerticalTolerance: 2.5
   redirectRadius: 2.5
   shootRange: 12
   aimInaccuracy: 0.12

@@ -54,6 +54,14 @@ public class MatchManager : MonoBehaviour
     public UnityEvent<TeamType> onMatchOver;
 
     private MatchState _currentState = MatchState.WaitingToStart;
+    
+    [Header("Scene References — Spawn Points")]
+    [Tooltip("Empty GameObjects in the scene representing spawn locations.")]
+    [SerializeField] private Transform playerSpawnPoint;
+    [SerializeField] private Transform teamABotSpawnPoint;
+    [SerializeField] private Transform teamBBot1SpawnPoint;
+    [SerializeField] private Transform teamBBot2SpawnPoint;
+    [SerializeField] private Transform discSpawnPoint;
 
     // Match timer
     private float _matchTimeRemaining;
@@ -332,22 +340,45 @@ public class MatchManager : MonoBehaviour
         }
     }
     
-    // Teleports all characters and the disc to center spawn positions
-    // Calls IResettable.ResetToSpawn on each character
+    // موقع اجرای بازی در ابتدا یا ثبت گل، این تابع برای لوکیشن دهی به پلیر و بات ها، جهت اسپاون فعال میشود
     private void ExecuteCenterSpawn()
     {
-        Quaternion spawnRotation = Quaternion.Euler(0f, matchData.spawnFacingYRotation, 0f);
+        Vector3 pPos = playerSpawnPoint ? playerSpawnPoint.position : matchData.playerSpawnPosition;
+        Quaternion pRot = playerSpawnPoint ? playerSpawnPoint.rotation : Quaternion.Euler(0f, matchData.spawnFacingYRotation, 0f);
+
+        // محاسبه موقعیت و چرخش بات هم ‌تیمی
+        Vector3 botAPos = teamABotSpawnPoint ? teamABotSpawnPoint.position : matchData.teamABotSpawnPosition;
+        Quaternion botARot = teamABotSpawnPoint ? teamABotSpawnPoint.rotation : Quaternion.Euler(0f, matchData.spawnFacingYRotation, 0f);
+
+        // محاسبه موقعیت و چرخش بات‌ های حریف
+        Vector3 botB1Pos = teamBBot1SpawnPoint ? teamBBot1SpawnPoint.position : matchData.teamBBot1SpawnPosition;
+        Quaternion botB1Rot = teamBBot1SpawnPoint ? teamBBot1SpawnPoint.rotation : Quaternion.Euler(0f, matchData.spawnFacingYRotation, 0f);
+
+        Vector3 botB2Pos = teamBBot2SpawnPoint ? teamBBot2SpawnPoint.position : matchData.teamBBot2SpawnPosition;
+        Quaternion botB2Rot = teamBBot2SpawnPoint ? teamBBot2SpawnPoint.rotation : Quaternion.Euler(0f, matchData.spawnFacingYRotation, 0f);
+
+        // اعمال ریست روی کاراکترها
+        ResetCharacter(_playerResettable, pPos, pRot);
+        ResetCharacter(_teamABotResettable, botAPos, botARot);
+        ResetCharacter(_teamBBot1Resettable, botB1Pos, botB1Rot);
+        ResetCharacter(_teamBBot2Resettable, botB2Pos, botB2Rot);
         
-        // Reset all characters
-        ResetCharacter(_playerResettable, matchData.playerSpawnPosition, spawnRotation);
-        ResetCharacter(_teamABotResettable, matchData.teamABotSpawnPosition, spawnRotation);
-        ResetCharacter(_teamBBot1Resettable, matchData.teamBBot1SpawnPosition, spawnRotation);
-        ResetCharacter(_teamBBot2Resettable, matchData.teamBBot2SpawnPosition, spawnRotation);
+        ResetDisc();  // ریست کردن دیسک
 
-        // Reset disc
-        ResetDisc();
-
-        Debug.Log("[MatchManager] Center spawn executed.");
+        Debug.Log("[MatchManager] Center spawn executed using Scene SpawnPoints");
+        
+        // Quaternion spawnRotation = Quaternion.Euler(0f, matchData.spawnFacingYRotation, 0f);
+        //
+        // // Reset all characters
+        // ResetCharacter(_playerResettable, matchData.playerSpawnPosition, spawnRotation);
+        // ResetCharacter(_teamABotResettable, matchData.teamABotSpawnPosition, spawnRotation);
+        // ResetCharacter(_teamBBot1Resettable, matchData.teamBBot1SpawnPosition, spawnRotation);
+        // ResetCharacter(_teamBBot2Resettable, matchData.teamBBot2SpawnPosition, spawnRotation);
+        //
+        // // Reset disc
+        // ResetDisc();
+        //
+        // Debug.Log("[MatchManager] Center spawn executed.");
     }
 
     private void ResetCharacter(IResettable resettable, Vector3 position, Quaternion rotation)
@@ -361,27 +392,51 @@ public class MatchManager : MonoBehaviour
     {
         if (!disc) return;
 
-        // If disc is held, force release first
         if (disc.currentState == DiscController.DiscState.Held)
         {
             disc.SetFree(Vector3.zero);
         }
 
-        // Teleport disc to center
-        disc.transform.position = matchData.discSpawnPosition;
-        disc.transform.rotation = Quaternion.Euler(matchData.discSpawnRotation);
+        // اگر نقطه‌ی اسپاون در ادیتور وصل شده بود از آن استفاده کن، در غیر این صورت از MatchData
+        Vector3 targetPos = discSpawnPoint ? discSpawnPoint.position : matchData.discSpawnPosition;
+        Quaternion targetRot = discSpawnPoint ? discSpawnPoint.rotation : Quaternion.Euler(matchData.discSpawnRotation);
 
-        // Kill all velocity
+        disc.transform.position = targetPos;
+        disc.transform.rotation = targetRot;
+
         if (_discRigidbody)
         {
             _discRigidbody.linearVelocity = Vector3.zero;
             _discRigidbody.angularVelocity = Vector3.zero;
         }
 
-        // Ensure disc is in Free state with no holder
         disc.SetFree(Vector3.zero);
 
-        Debug.Log($"[MatchManager] Disc reset to {matchData.discSpawnPosition}.");
+        Debug.Log($"[MatchManager] Disc reset to {targetPos}");
+        
+        // if (!disc) return;
+        //
+        // // If disc is held, force release first
+        // if (disc.currentState == DiscController.DiscState.Held)
+        // {
+        //     disc.SetFree(Vector3.zero);
+        // }
+        //
+        // // Teleport disc to center
+        // disc.transform.position = matchData.discSpawnPosition;
+        // disc.transform.rotation = Quaternion.Euler(matchData.discSpawnRotation);
+        //
+        // // Kill all velocity
+        // if (_discRigidbody)
+        // {
+        //     _discRigidbody.linearVelocity = Vector3.zero;
+        //     _discRigidbody.angularVelocity = Vector3.zero;
+        // }
+        //
+        // // Ensure disc is in Free state with no holder
+        // disc.SetFree(Vector3.zero);
+        //
+        // Debug.Log($"[MatchManager] Disc reset to {matchData.discSpawnPosition}.");
     }
 
     // Freeze and UnFreeze Characters
