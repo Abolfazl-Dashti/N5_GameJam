@@ -15,13 +15,13 @@ MonoBehaviour:
   throwSpeed: 40
   maxSpeed: 60
   spinTorque: 15
-  minFreeSpeed: 5
+  minFreeSpeed: 12
   wallReboundBoostMultiplier: 1.5
   floorReboundBoostMultiplier: 1.248
   ceilingReboundBoostMultiplier: 1.426
   freeDrag: 0.05
   gravityScale: 0.4
-  holdOffset: {x: 0.34, y: 0.45, z: 1.17}
+  holdOffset: {x: 0, y: 0.3, z: 1.11}
   wallLayerName: ArenaWall
   floorLayerName: ArenaFloor
   ceilingLayerName: ArenaCeiling

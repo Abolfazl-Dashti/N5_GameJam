@@ -1,5 +1,7 @@
+using System;
 using UnityEngine;
 using UnityEngine.Events;
+using TMPro;
 
 // Must be attached to Each goal GameObjects of TeamA & TeamB
 public class GoalController : MonoBehaviour, IGoalActivating
@@ -17,6 +19,7 @@ public class GoalController : MonoBehaviour, IGoalActivating
 
     [Tooltip("The ScoreManager in the scene.")]
     [SerializeField] private ScoreManager scoreManager;
+    [SerializeField] private TextMeshProUGUI scoreText;
 
     [Tooltip("The Renderer on the goal visuals used to show active/inactive color. " +
              "Can be a MeshRenderer on a goal frame or trigger plane.")]
@@ -49,6 +52,16 @@ public class GoalController : MonoBehaviour, IGoalActivating
         SetGoalVisual(goalData.inactiveColor);
     }
 
+    private void OnEnable()
+    {
+        if (scoreManager) scoreManager.onScoreChanged.AddListener(UpdateScoreDisplay);
+    }
+
+    private void OnDisable()
+    {
+        if (scoreManager) scoreManager.onScoreChanged.RemoveListener(UpdateScoreDisplay);
+    }
+
     private void Update()
     {
         if (_isProcessingGoal)
@@ -57,9 +70,6 @@ public class GoalController : MonoBehaviour, IGoalActivating
         }
     }
     
-    // Called by Unity when the disc enters the goal trigger volume
-    // OnTriggerEnter works because the disc's collider becomes a trigger
-    // while held — but we only care about it when it is NOT held (Free or Passed)
     private void OnTriggerEnter(Collider other)
     {
         // Ignore if already processing a goal this frame
@@ -90,12 +100,6 @@ public class GoalController : MonoBehaviour, IGoalActivating
         ProcessGoal(scoringTeam, currentMultiplier);
     }
     
-    // --------- For Goal Finding Bug in prototype(not stadium yet) ---------
-    // Returns the goal's real-world scoring position. The GoalController's own
-    // transform sits at the prefab/parent origin and does NOT reflect the goal's
-    // actual placement in the arena — the goalTriggerCollider child does, since
-    // it's the object that was actually moved into position for gameplay
-    // AI and gameplay code MUST use this instead of transform.position
     public Vector3 GetGoalPosition()
     {
         if (goalTriggerCollider) return goalTriggerCollider.transform.position;
@@ -110,8 +114,6 @@ public class GoalController : MonoBehaviour, IGoalActivating
     {
         _isProcessingGoal = true;
         _postGoalTimer = 0f;
-
-        // Deactivate goal immediately — no more shots during replay pause
         DeactivateGoal();
 
         // Award score
@@ -136,8 +138,6 @@ public class GoalController : MonoBehaviour, IGoalActivating
                   $"(x{passMultiplier} multiplier). Post-goal pause started.");
     }
     
-    // Counts down the post-goal pause (replay window)
-    // When done, fires reset event so MatchManager can respawn players
     private void TickPostGoalTimer()
     {
         _postGoalTimer += Time.deltaTime;
@@ -203,8 +203,7 @@ public class GoalController : MonoBehaviour, IGoalActivating
         return TeamType.None;
     }
     
-    // Sets the goal renderer's emission color to give visual feedback
-    // Works with URP Lit shader — requires _EmissionColor property
+    // This is for former prototype
     private void SetGoalVisual(Color color)
     {
         if (!goalRenderer) return;
@@ -215,6 +214,19 @@ public class GoalController : MonoBehaviour, IGoalActivating
         block.SetColor("_EmissionColor", color);
         block.SetColor("_BaseColor", color);
         goalRenderer.SetPropertyBlock(block);
+    }
+    
+    private void UpdateScoreDisplay(int teamAScore, int teamBScore)
+    {
+        if (!scoreText) return;
+
+        // مشخص کردن تیم مهاجم (تیمی که به این دروازه گل می‌زند)
+        TeamType attackingTeam = GetAttackingTeam();
+
+        // اگر تیم مدافع Team A باشد، امتیاز Team B (مهاجم) نشان داده می‌شود و بالعکس
+        int scoreToShow = (attackingTeam == TeamType.TeamA) ? teamAScore : teamBScore;
+
+        scoreText.text = scoreToShow.ToString();
     }
 
     private void ValidateReferences()

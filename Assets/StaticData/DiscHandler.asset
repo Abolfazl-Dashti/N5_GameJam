@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: DiscHandler
   m_EditorClassIdentifier: Assembly-CSharp::DiscHandlerData
   catchRadius: 2
-  catchCastRange: 20
+  catchCastRange: 25
   discLayerMask:
     serializedVersion: 2
     m_Bits: 8
@@ -21,6 +21,6 @@ MonoBehaviour:
   maxThrowSpeed: 35
   maxChargeTime: 1.2
   throwLoftAngle: 3
-  redirectRange: 25
+  redirectRange: 30
   redirectSpeedRetention: 0.95
   redirectCooldown: 1.5

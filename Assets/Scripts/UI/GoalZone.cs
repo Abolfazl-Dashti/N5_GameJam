@@ -5,32 +5,30 @@ using TMPro;
 public class GoalZone : MonoBehaviour
 {
     [Header("VFX & UI")]
-    public ParticleSystem goalParticle;
-    public ParticleSystem goalParticle1;
-    public TMP_Text scoreText;  // تکست UI که شمارنده رو نشون میده
+    [SerializeField] private ParticleSystem goalParticle;
+    [SerializeField] private ParticleSystem goalParticle1;
+    [SerializeField] private TMP_Text scoreText;  // تکست UI که شمارنده رو نشون میده
+    
+    [Header("Goal Settings")]
+    [SerializeField] private LayerMask discLayer;
 
-    public void PlayGoalEffect()
+    private int _score;
+    
+    private void PlayGoalEffect()
     {
         if (goalParticle) goalParticle.Play();
         if (goalParticle1) goalParticle1.Play();
     }
     
+    private void OnTriggerEnter(Collider other)
+    {
+        // چک میکنیم ابجکت ورودی لایه disc داره یا نه
+        if ((discLayer.value & (1 << other.gameObject.layer)) == 0) return;
+        
+        PlayGoalEffect();
     
-    // لایه‌ای که فقط دیسک داره - حساسه، اشتباه بدی کار نمیکنه
-    // public LayerMask Disc;
-
-    // private int score = 0;
-
-    // private void OnTriggerEnter(Collider other)
-    // {
-    //     // چک میکنیم ابجکت ورودی لایه disc داره یا نه
-    //     if ((Disc.value & (1 << other.gameObject.layer)) == 0) return;
-    //
-    //     goalParticle.Play();
-    //     goalParticle1.Play();
-    //
-    //     score++;
-    //     scoreText.text = score.ToString();
-    // }
+        // _score++;
+        // scoreText.text = _score.ToString();
+    }
 }
 
